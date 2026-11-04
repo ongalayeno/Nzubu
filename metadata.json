@@ -1,0 +1,6 @@
+{
+  "name": "NZUBU — Plateforme Immobilière & Feed Vidéo Kinshasa",
+  "description": "Plateforme immobilière urbaine à Kinshasa (le 'TikTok de l'immobilier') avec feed vidéo vertical, logements meublés et non-meublés, courte et longue durée, et vérification physique certifiée.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
