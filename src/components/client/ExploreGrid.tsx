@@ -41,6 +41,8 @@ export const ExploreGrid: React.FC<ExploreGridProps> = ({
   const [selectedFurnishing, setSelectedFurnishing] = useState<'ALL' | 'FURNISHED' | 'UNFURNISHED'>('ALL');
   const [onlyVerifiedWater, setOnlyVerifiedWater] = useState(false);
   const [onlyGenerator, setOnlyGenerator] = useState(false);
+  const [selectedType, setSelectedType] = useState('ALL');
+  const [maxPrice, setMaxPrice] = useState('');
 
   const formatCDF = (num: number) => new Intl.NumberFormat('fr-CD').format(num);
 
@@ -51,6 +53,8 @@ export const ExploreGrid: React.FC<ExploreGridProps> = ({
     if (selectedMode !== 'ALL' && item.rentalMode !== selectedMode) {
       return false;
     }
+    if (selectedType !== 'ALL' && item.unitType !== selectedType) return false;
+    if (maxPrice && item.pricing.amountCdf > Number(maxPrice)) return false;
     if (selectedFurnishing !== 'ALL' && item.furnishingStatus !== selectedFurnishing) {
       return false;
     }
@@ -78,6 +82,8 @@ export const ExploreGrid: React.FC<ExploreGridProps> = ({
     setSelectedFurnishing('ALL');
     setOnlyVerifiedWater(false);
     setOnlyGenerator(false);
+    setSelectedType('ALL');
+    setMaxPrice('');
   };
 
   return (
@@ -107,6 +113,21 @@ export const ExploreGrid: React.FC<ExploreGridProps> = ({
 
         {/* Filter Controls Row */}
         <div className="flex flex-wrap items-center gap-2 text-xs">
+          <label className="flex items-center gap-1 rounded-lg bg-slate-900 border border-slate-800 px-2 py-1">
+            <span className="text-slate-400">Type</span>
+            <select value={selectedType} onChange={(e) => setSelectedType(e.target.value)} className="bg-transparent text-white text-xs">
+              <option value="ALL">Tous</option>
+              <option value="APARTMENT">Appartement</option>
+              <option value="VILLA">Villa</option>
+              <option value="STUDIO">Studio</option>
+              <option value="ROOM">Chambre</option>
+              <option value="HOUSE">Maison</option>
+            </select>
+          </label>
+          <label className="flex items-center gap-1 rounded-lg bg-slate-900 border border-slate-800 px-2 py-1">
+            <span className="text-slate-400">Prix max. CDF</span>
+            <input type="number" min="0" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} placeholder="Sans limite" className="w-24 bg-transparent text-white text-xs outline-none" />
+          </label>
           {/* Communes Pills */}
           <div className="flex items-center gap-1 p-1 bg-slate-900 border border-slate-800 rounded-lg">
             {['ALL', 'Gombe', 'Ngaliema', 'Lingwala'].map((c) => (
@@ -205,7 +226,7 @@ export const ExploreGrid: React.FC<ExploreGridProps> = ({
             <span>Groupe / Solaire</span>
           </button>
 
-          {(selectedCommune !== 'ALL' || selectedMode !== 'ALL' || selectedFurnishing !== 'ALL' || onlyVerifiedWater || onlyGenerator || searchQuery) && (
+          {(selectedCommune !== 'ALL' || selectedMode !== 'ALL' || selectedFurnishing !== 'ALL' || selectedType !== 'ALL' || maxPrice || onlyVerifiedWater || onlyGenerator || searchQuery) && (
             <button
               onClick={resetFilters}
               className="px-2.5 py-1.5 text-xs text-rose-400 hover:text-rose-300 flex items-center gap-1 ml-auto"

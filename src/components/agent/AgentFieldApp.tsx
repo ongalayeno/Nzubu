@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   ClipboardCheck, 
   MapPin, 
@@ -44,6 +44,7 @@ import {
   Upload
 } from 'lucide-react';
 import { FieldMission, GpsCoordinates, MissionPhotoEvidence } from '../../types';
+import { exportMissionPdf } from '../../utils/exportMissionPdf';
 
 interface AgentFieldAppProps {
   missions: FieldMission[];
@@ -63,6 +64,21 @@ export const AgentFieldApp: React.FC<AgentFieldAppProps> = ({
 }) => {
   // Navigation: Active missions vs Archives
   const [activeTab, setActiveTab] = useState<'ACTIVE_MISSIONS' | 'ARCHIVES'>('ACTIVE_MISSIONS');
+  const [pdfExporting, setPdfExporting] = useState(false);
+  const [pdfExportError, setPdfExportError] = useState<string | null>(null);
+
+  const handleExportPdf = async (mission: FieldMission) => {
+    setPdfExporting(true);
+    setPdfExportError(null);
+    try {
+      await exportMissionPdf(mission);
+    } catch (error) {
+      console.error('Échec de l’export PDF', error);
+      setPdfExportError('Le rapport PDF n’a pas pu être généré. Réessayez.');
+    } finally {
+      setPdfExporting(false);
+    }
+  };
 
   // Active mission state
   const activeMissionsList = missions.filter((m) => m.status === 'ASSIGNED' || m.status === 'IN_PROGRESS');
@@ -110,12 +126,28 @@ export const AgentFieldApp: React.FC<AgentFieldAppProps> = ({
   const [dateSortOrder, setDateSortOrder] = useState<'DESC' | 'ASC'>('DESC');
   const [archiveModalMission, setArchiveModalMission] = useState<FieldMission | null>(null);
 
+  useEffect(() => {
+    if (!selectedMission || !hasUnsyncedDraft) return;
+    try {
+      localStorage.setItem(`nzubu:draft:${selectedMission.id}`, JSON.stringify({ checklist, gpsCoordinates, photos, decisionOutcome, notes }));
+    } catch {
+      setGpsStatusMessage('Stockage local saturé : impossible de conserver ce brouillon.');
+    }
+  }, [selectedMission, hasUnsyncedDraft, checklist, gpsCoordinates, photos, decisionOutcome, notes]);
+
   const handleSelectMission = (mission: FieldMission) => {
+    let draft: Partial<{ checklist: FieldMission['checklist']; gpsCoordinates: GpsCoordinates; photos: MissionPhotoEvidence[]; decisionOutcome: typeof decisionOutcome; notes: string }> | null = null;
+    try {
+      const saved = localStorage.getItem(`nzubu:draft:${mission.id}`);
+      draft = saved ? JSON.parse(saved) : null;
+    } catch {
+      draft = null;
+    }
     setSelectedMission(mission);
-    setGpsCoordinates(mission.gpsCoordinates || null);
+    setGpsCoordinates(draft?.gpsCoordinates || mission.gpsCoordinates || null);
     setGpsStatusMessage(null);
-    setPhotos(mission.photos || []);
-    setChecklist({
+    setPhotos(draft?.photos || mission.photos || []);
+    setChecklist(draft?.checklist || {
       identityVerified: mission.checklist.identityVerified,
       mandateOrTitleChecked: mission.checklist.mandateOrTitleChecked,
       physicalPresenceConfirmed: mission.checklist.physicalPresenceConfirmed || (!!mission.gpsCoordinates),
@@ -126,9 +158,17 @@ export const AgentFieldApp: React.FC<AgentFieldAppProps> = ({
       videoFilmedVerticalNoFaces: mission.checklist.videoFilmedVerticalNoFaces,
       safetyEgressChecked: mission.checklist.safetyEgressChecked,
     });
-    setNotes(mission.notes || '');
+    setNotes(draft?.notes || mission.notes || '');
+    setDecisionOutcome(draft?.decisionOutcome || mission.decisionOutcome || 'PASS');
+    setHasUnsyncedDraft(Boolean(draft));
     setSubmittedFeedback(false);
   };
+
+  useEffect(() => {
+    if (selectedMission) handleSelectMission(selectedMission);
+    // Restore only the initial mission's locally saved draft on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const toggleCheck = (key: keyof typeof checklist) => {
     setChecklist((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -172,19 +212,6 @@ export const AgentFieldApp: React.FC<AgentFieldAppProps> = ({
     setIsCapturingGps(true);
     setGpsStatusMessage(null);
 
-    if (isOfflineSimulated) {
-      setTimeout(() => {
-        const fallback = getKinshasaCommuneCoordinates(selectedMission?.commune || 'Gombe');
-        fallback.source = 'OFFLINE_CACHE';
-        setGpsCoordinates(fallback);
-        setIsCapturingGps(false);
-        setHasUnsyncedDraft(true);
-        setChecklist((prev) => ({ ...prev, physicalPresenceConfirmed: true }));
-        setGpsStatusMessage("Position GPS fixée via cache satellite hors-ligne.");
-      }, 700);
-      return;
-    }
-
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -201,24 +228,15 @@ export const AgentFieldApp: React.FC<AgentFieldAppProps> = ({
           setChecklist((prev) => ({ ...prev, physicalPresenceConfirmed: true }));
           setGpsStatusMessage("Position GPS acquise avec succès depuis les capteurs de l'appareil !");
         },
-        (err) => {
-          // If in iframe sandbox where geolocation permission is blocked or denied
-          const fallback = getKinshasaCommuneCoordinates(selectedMission?.commune || 'Gombe');
-          setGpsCoordinates(fallback);
+        () => {
           setIsCapturingGps(false);
-          setHasUnsyncedDraft(true);
-          setChecklist((prev) => ({ ...prev, physicalPresenceConfirmed: true }));
-          setGpsStatusMessage(`Position GPS géoréférencée pour ${selectedMission?.commune} (Précision ±${fallback.accuracyMeters}m).`);
+          setGpsStatusMessage('GPS indisponible ou autorisation refusée. Réessayez sur place.');
         },
         { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
       );
     } else {
-      const fallback = getKinshasaCommuneCoordinates(selectedMission?.commune || 'Gombe');
-      setGpsCoordinates(fallback);
       setIsCapturingGps(false);
-      setHasUnsyncedDraft(true);
-      setChecklist((prev) => ({ ...prev, physicalPresenceConfirmed: true }));
-      setGpsStatusMessage("Position GPS capturée.");
+      setGpsStatusMessage('Cet appareil ne permet pas la capture GPS.');
     }
   };
 
@@ -299,7 +317,7 @@ export const AgentFieldApp: React.FC<AgentFieldAppProps> = ({
     e.preventDefault();
     if (!selectedMission) return;
 
-    if (!gpsCoordinates) {
+    if (!gpsCoordinates || gpsCoordinates.source !== 'DEVICE_GPS') {
       alert("Validation de présence requise : Veuillez capturer vos coordonnées GPS sur place avant de transmettre le rapport.");
       return;
     }
@@ -312,6 +330,7 @@ export const AgentFieldApp: React.FC<AgentFieldAppProps> = ({
 
     onCompleteMission(selectedMission.id, checklist, decisionOutcome, notes, gpsCoordinates, photos);
     setHasUnsyncedDraft(false);
+    localStorage.removeItem(`nzubu:draft:${selectedMission.id}`);
     setSubmittedFeedback(true);
   };
 
@@ -424,7 +443,14 @@ export const AgentFieldApp: React.FC<AgentFieldAppProps> = ({
             </div>
             {!isOfflineSimulated && (
               <button
-                onClick={() => setHasUnsyncedDraft(false)}
+                onClick={() => {
+                  if (selectedMission && gpsCoordinates?.source === 'DEVICE_GPS') {
+                    onCompleteMission(selectedMission.id, checklist, decisionOutcome, notes, gpsCoordinates, photos);
+                    setHasUnsyncedDraft(false);
+                    localStorage.removeItem(`nzubu:draft:${selectedMission.id}`);
+                    setSubmittedFeedback(true);
+                  }
+                }}
                 className="px-2 py-1 bg-amber-500 text-slate-950 font-bold rounded text-[11px]"
               >
                 Synchroniser maintenant
@@ -1434,8 +1460,17 @@ export const AgentFieldApp: React.FC<AgentFieldAppProps> = ({
               </div>
             )}
 
-            {/* Close CTA */}
-            <div className="pt-2">
+            {/* Report actions */}
+            <div className="pt-2 space-y-2">
+              {pdfExportError && <p role="alert" className="text-xs text-rose-400">{pdfExportError}</p>}
+              <button
+                onClick={() => handleExportPdf(archiveModalMission)}
+                disabled={pdfExporting}
+                className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-slate-950 font-semibold text-xs transition-colors flex items-center justify-center gap-2"
+              >
+                <FileText className="w-4 h-4" />
+                {pdfExporting ? 'Génération du PDF…' : 'Exporter Rapport PDF'}
+              </button>
               <button
                 onClick={() => setArchiveModalMission(null)}
                 className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs transition-colors"

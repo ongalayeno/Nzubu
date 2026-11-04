@@ -1,0 +1,3 @@
+ALTER TABLE documents DROP CONSTRAINT IF EXISTS documents_kind_check;
+ALTER TABLE documents ADD CONSTRAINT documents_kind_check
+  CHECK (kind IN ('IDENTITY','TITLE','MANDATE','MEDIA_CONSENT','INSPECTION_PHOTO'));

@@ -26,6 +26,7 @@ import {
   ShieldAlert
 } from 'lucide-react';
 import { PropertyListing, FieldMission, BookingRequest, SecurityAlert } from '../../types';
+import { canApproveListing, isListingPublic } from '../../domain/listing';
 
 interface BackOfficeViewProps {
   listings: PropertyListing[];
@@ -90,17 +91,17 @@ export const BackOfficeView: React.FC<BackOfficeViewProps> = ({
           <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800">
             <span className="text-xs text-slate-400 block">Complétude des annonces</span>
             <div className="text-2xl font-black text-emerald-400 tabular-nums mt-1">
-              100 %
+              {listings.length ? Math.round(listings.filter((item) => isListingPublic(item)).length / listings.length * 100) : 0} %
             </div>
-            <span className="text-[10px] text-slate-400">Cible pilote atteinte (§1.7)</span>
+            <span className="text-[10px] text-slate-400">Annonces publiques parmi les logements saisis</span>
           </div>
 
           <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800">
             <span className="text-xs text-slate-400 block">Double réservation</span>
             <div className="text-2xl font-black text-emerald-400 tabular-nums mt-1">
-              0
+              À vérifier
             </div>
-            <span className="text-[10px] text-slate-400">Verrou atomique serveur</span>
+            <span className="text-[10px] text-slate-400">Verrou atomique serveur non implémenté</span>
           </div>
 
           <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800">
@@ -179,7 +180,8 @@ export const BackOfficeView: React.FC<BackOfficeViewProps> = ({
 
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => onSuspendListing(alert.unitTitle)}
+                        onClick={() => alert.listingId && onSuspendListing(alert.listingId)}
+                        disabled={!alert.listingId}
                         className="py-1.5 px-3 rounded-lg bg-rose-600/30 hover:bg-rose-600/50 text-rose-200 border border-rose-500/40 text-xs font-bold transition-colors flex items-center gap-1.5"
                       >
                         <PauseCircle className="w-3.5 h-3.5" />
@@ -325,7 +327,7 @@ export const BackOfficeView: React.FC<BackOfficeViewProps> = ({
                     <div className="flex items-center gap-2">
                       <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold flex items-center gap-1.5">
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Badge 90j Valide ({item.verification.verifiedUntil})</span>
+                        <span>{isListingPublic(item) ? `Publié · badge valide jusqu’au ${item.verification.verifiedUntil}` : item.publicationStatus === 'PENDING_INSPECTION' ? 'Inspection à réaliser' : item.publicationStatus === 'PENDING_APPROVAL' ? 'En attente de validation' : item.publicationStatus === 'SUSPENDED' ? 'Suspendu' : 'Non disponible'}</span>
                       </span>
                     </div>
                   </div>
@@ -335,7 +337,7 @@ export const BackOfficeView: React.FC<BackOfficeViewProps> = ({
                     <div className="p-3 rounded-xl bg-slate-800/40 border border-slate-800">
                       <span className="text-[11px] text-slate-400 block">Agent inspecteur :</span>
                       <span className="font-semibold text-white block mt-0.5">
-                        {item.verification.inspectorName}
+                        {item.verification.inspectorName || 'Inspection en attente'}
                       </span>
                       <span className="text-[10px] text-slate-400 font-mono">
                         Réf. {item.verification.reportReference}
@@ -348,7 +350,7 @@ export const BackOfficeView: React.FC<BackOfficeViewProps> = ({
                         {item.partner.name} ({item.partner.type})
                       </span>
                       <span className="text-[10px] text-emerald-400">
-                        Mandat écrit & identité vérifiés
+                        {item.partner.verified ? 'Partenaire déclaré vérifié' : 'Justificatifs en attente'}
                       </span>
                     </div>
 
@@ -375,10 +377,11 @@ export const BackOfficeView: React.FC<BackOfficeViewProps> = ({
 
                     <button
                       onClick={() => onApproveListingBadge(item.id)}
-                      className="py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                      disabled={!canApproveListing(item, missions)}
+                      className="py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-semibold flex items-center gap-1.5 transition-colors"
                     >
                       <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>Re-valider pour 90 jours</span>
+                      <span>Valider et publier pour 90 jours</span>
                     </button>
                   </div>
                 </div>

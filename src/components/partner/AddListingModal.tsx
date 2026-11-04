@@ -63,12 +63,12 @@ export const AddListingModal: React.FC<AddListingModalProps> = ({
       utilities: {
         water: {
           type: waterType,
-          testedWorking: true,
+          testedWorking: false,
           notes: waterType === 'TANK_RESERVE' ? 'Réserve surpresseur déclarée' : 'Alimentation déclarée',
         },
         electricity: {
           type: electricityType,
-          testedWorking: true,
+          testedWorking: false,
           notes: electricityType === 'GENERATOR_BACKUP' ? 'Groupe électrogène de secours disponible' : 'Alimentation déclarée',
         },
         ac: hasAc,

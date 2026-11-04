@@ -19,6 +19,9 @@ import {
   INITIAL_MISSIONS 
 } from './data/mockData';
 import { Header } from './components/Header';
+import { canApproveListing, isListingPublic } from './domain/listing';
+import { hasBookingConflict } from './domain/booking';
+import { usePersistentState } from './hooks/usePersistentState';
 import { TikTokFeed } from './components/client/TikTokFeed';
 import { ExploreGrid } from './components/client/ExploreGrid';
 import { ClientRequestsView } from './components/client/ClientRequestsView';
@@ -52,13 +55,13 @@ export default function App() {
   const [clientSubTab, setClientSubTab] = useState<'FEED' | 'EXPLORE' | 'REQUESTS'>('FEED');
 
   // Core collections
-  const [listings, setListings] = useState<PropertyListing[]>(INITIAL_LISTINGS);
-  const [bookings, setBookings] = useState<BookingRequest[]>(INITIAL_BOOKINGS);
-  const [viewings, setViewings] = useState<ViewingRequest[]>(INITIAL_VIEWINGS);
-  const [missions, setMissions] = useState<FieldMission[]>(INITIAL_MISSIONS);
+  const [listings, setListings] = usePersistentState<PropertyListing[]>('nzubu:listings:v2', INITIAL_LISTINGS);
+  const [bookings, setBookings] = usePersistentState<BookingRequest[]>('nzubu:bookings:v2', INITIAL_BOOKINGS);
+  const [viewings, setViewings] = usePersistentState<ViewingRequest[]>('nzubu:viewings:v2', INITIAL_VIEWINGS);
+  const [missions, setMissions] = usePersistentState<FieldMission[]>('nzubu:missions:v2', INITIAL_MISSIONS);
 
   // Security alerts registry
-  const [securityAlerts, setSecurityAlerts] = useState<SecurityAlert[]>([
+  const [securityAlerts, setSecurityAlerts] = usePersistentState<SecurityAlert[]>('nzubu:alerts:v2', [
     {
       id: 'alt-001',
       missionId: 'mis-2026-031',
@@ -108,7 +111,7 @@ export default function App() {
 
   // Filtered listings for video feed
   const activeFeedListings = listings.filter((item) => {
-    if (item.availabilityStatus === 'OCCUPIED') return false;
+    if (!isListingPublic(item)) return false;
     if (feedCommuneFilter !== 'ALL' && item.commune.toLowerCase() !== feedCommuneFilter.toLowerCase()) {
       return false;
     }
@@ -128,6 +131,26 @@ export default function App() {
   };
 
   const handleSubmitBooking = (newBookingData: Partial<BookingRequest>) => {
+    const listing = listings.find((item) => item.id === newBookingData.listingId);
+    if (!listing || !isListingPublic(listing) || listing.rentalMode !== 'SHORT_STAY') {
+      triggerToast('Ce logement ne peut pas être réservé actuellement.');
+      return;
+    }
+    const start = new Date(`${newBookingData.checkInDate}T00:00:00Z`);
+    const end = new Date(`${newBookingData.checkOutDate}T00:00:00Z`);
+    if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) {
+      triggerToast('Veuillez choisir des dates de séjour valides.');
+      return;
+    }
+    const conflict = hasBookingConflict(bookings, {
+      listingId: listing.id,
+      checkInDate: newBookingData.checkInDate!,
+      checkOutDate: newBookingData.checkOutDate!,
+    }, ['CONFIRMED']);
+    if (conflict) {
+      triggerToast('Ces dates sont déjà réservées.');
+      return;
+    }
     const newId = `bkg-2026-00${bookings.length + 1}`;
     const newBooking: BookingRequest = {
       id: newId,
@@ -143,7 +166,7 @@ export default function App() {
       totalPriceCdf: newBookingData.totalPriceCdf || 250000,
       advanceAmountCdf: newBookingData.advanceAmountCdf || 50000,
       balanceDueArrivalCdf: newBookingData.balanceDueArrivalCdf || 200000,
-      status: 'HOST_ACCEPTED_TERMS', // 30-min hold initiated per brief §15.4
+      status: 'REQUESTED',
       paymentMethod: newBookingData.paymentMethod || 'VODACOM_MPESA',
       createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
       expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 16),
@@ -151,14 +174,20 @@ export default function App() {
     };
 
     setBookings((prev) => [newBooking, ...prev]);
-    triggerToast("Demande de réservation enregistrée ! Blocage temporaire de 30 min initié.");
+    triggerToast('Demande de réservation enregistrée. En attente de réponse de l’hôte.');
   };
 
   const handleDeclarePayment = (bookingId: string, reference: string) => {
+    const booking = bookings.find((item) => item.id === bookingId);
+    if (!booking || booking.status !== 'HOST_ACCEPTED_TERMS' || new Date(booking.expiresAt).getTime() <= Date.now()) {
+      triggerToast('Le délai de paiement a expiré. Demandez un nouveau créneau à l’hôte.');
+      return;
+    }
+    if (!reference.trim()) return;
     setBookings((prev) =>
       prev.map((b) =>
         b.id === bookingId
-          ? { ...b, status: 'PAYMENT_DECLARED', paymentReference: reference }
+          ? { ...b, status: 'PAYMENT_DECLARED', paymentReference: reference.trim() }
           : b
       )
     );
@@ -166,6 +195,16 @@ export default function App() {
   };
 
   const handleConfirmHostPayment = (bookingId: string) => {
+    const booking = bookings.find((item) => item.id === bookingId);
+    if (!booking || booking.status !== 'PAYMENT_DECLARED' || new Date(booking.expiresAt).getTime() <= Date.now()) {
+      triggerToast('Confirmation impossible : paiement non déclaré ou délai expiré.');
+      return;
+    }
+    const overlaps = hasBookingConflict(bookings, booking, ['CONFIRMED'], booking.id);
+    if (overlaps) {
+      triggerToast('Confirmation impossible : ces dates sont déjà réservées.');
+      return;
+    }
     setBookings((prev) =>
       prev.map((b) =>
         b.id === bookingId ? { ...b, status: 'CONFIRMED' } : b
@@ -175,9 +214,16 @@ export default function App() {
   };
 
   const handleAcceptBooking = (bookingId: string) => {
+    const booking = bookings.find((item) => item.id === bookingId);
+    if (!booking || booking.status !== 'REQUESTED') return;
+    const conflict = hasBookingConflict(bookings, booking, ['CONFIRMED', 'HOST_ACCEPTED_TERMS', 'PAYMENT_DECLARED'], booking.id);
+    if (conflict) {
+      triggerToast('Impossible de bloquer ces dates : un autre dossier est prioritaire.');
+      return;
+    }
     setBookings((prev) =>
       prev.map((b) =>
-        b.id === bookingId ? { ...b, status: 'HOST_ACCEPTED_TERMS' } : b
+        b.id === bookingId ? { ...b, status: 'HOST_ACCEPTED_TERMS', expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString() } : b
       )
     );
     triggerToast("Demande acceptée par l'hôte. Verrou temporaire de 30 min activé pour le client.");
@@ -238,20 +284,20 @@ export default function App() {
         photos: ['https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=800&auto=format&fit=crop&q=80'],
       },
       verification: {
-        verifiedAt: new Date().toISOString().substring(0, 10),
-        verifiedUntil: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10),
-        inspectorId: 'NZUBU-AG-04',
-        inspectorName: 'Patrick Mbiya (Agent Terrain)',
-        reportReference: `RPT-${listingData.commune?.substring(0, 3).toUpperCase() || 'GOM'}-2026-NEW`,
+        verifiedAt: '',
+        verifiedUntil: '',
+        inspectorId: '',
+        inspectorName: '',
+        reportReference: '',
         checksCompleted: {
-          identityAndRights: true,
-          physicalExistence: true,
-          utilitiesWaterElectricity: true,
-          interiorMatch: true,
-          mediaIntegrity: true,
-          pricingInCdf: true,
+          identityAndRights: false,
+          physicalExistence: false,
+          utilitiesWaterElectricity: false,
+          interiorMatch: false,
+          mediaIntegrity: false,
+          pricingInCdf: false,
         },
-        disclaimers: ['Contrôle physique certifié NZUBU réalisé sur place.'],
+        disclaimers: [],
       },
       partner: listingData.partner || {
         id: 'ptn-user',
@@ -263,6 +309,7 @@ export default function App() {
         responseRatePercent: 100,
       },
       availabilityStatus: 'AVAILABLE',
+      publicationStatus: 'PENDING_INSPECTION',
       cancellationPolicy: {
         id: 'pol-std',
         summary: 'Conditions standards Kinshasa',
@@ -277,6 +324,7 @@ export default function App() {
     // Also create a field mission in operations
     const newMission: FieldMission = {
       id: `mis-2026-0${missions.length + 50}`,
+      listingId: newListing.id,
       unitTitle: newListing.title,
       commune: newListing.commune,
       quartier: newListing.quartier,
@@ -308,7 +356,7 @@ export default function App() {
   const handleToggleAvailability = (listingId: string) => {
     setListings((prev) =>
       prev.map((item) =>
-        item.id === listingId
+        item.id === listingId && (item.publicationStatus === undefined || item.publicationStatus === 'PUBLISHED')
           ? {
               ...item,
               availabilityStatus:
@@ -346,11 +394,18 @@ export default function App() {
       )
     );
 
+    if (existingMission?.listingId && outcome !== 'SAFETY_CONCERN') {
+      setListings((prev) => prev.map((item) => item.id === existingMission.listingId
+        ? { ...item, publicationStatus: outcome === 'PASS' ? 'PENDING_APPROVAL' : 'PENDING_INSPECTION' }
+        : item));
+    }
+
     // Automatic validation logic: When an agent selects SAFETY_CONCERN, trigger an immediate Urgent Safety Alert to the Back-Office
     if (outcome === 'SAFETY_CONCERN') {
       const newAlert: SecurityAlert = {
         id: `alt-${Date.now().toString().slice(-4)}`,
         missionId,
+        listingId: existingMission?.listingId,
         unitTitle: existingMission?.unitTitle || 'Logement contrôlé',
         commune: existingMission?.commune || 'Gombe',
         quartier: existingMission?.quartier,
@@ -368,14 +423,13 @@ export default function App() {
       // Immediate protective measure: suspend / block the listing from public search feed
       setListings((prev) =>
         prev.map((item) => {
-          const isMatching = 
-            item.title.toLowerCase().includes(existingMission?.unitTitle.toLowerCase() || '___') ||
-            (existingMission && item.commune.toLowerCase() === existingMission.commune.toLowerCase() && item.landmark.toLowerCase() === existingMission.landmark.toLowerCase());
+          const isMatching = existingMission?.listingId === item.id;
           
           if (isMatching) {
             return {
               ...item,
               availabilityStatus: 'OCCUPIED',
+              publicationStatus: 'SUSPENDED',
               verification: {
                 ...item.verification,
                 disclaimers: [
@@ -403,6 +457,12 @@ export default function App() {
   };
 
   const handleApproveListingBadge = (listingId: string) => {
+    const listing = listings.find((item) => item.id === listingId);
+    if (!listing || !canApproveListing(listing, missions)) {
+      triggerToast('Approbation refusée : rapport terrain complet et favorable requis.');
+      return;
+    }
+    const report = missions.find((mission) => mission.listingId === listingId && mission.status === 'REPORT_SUBMITTED')!;
     setListings((prev) =>
       prev.map((item) =>
         item.id === listingId
@@ -412,11 +472,29 @@ export default function App() {
                 ...item.verification,
                 verifiedAt: new Date().toISOString().substring(0, 10),
                 verifiedUntil: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10),
+                inspectorId: report.agentId,
+                inspectorName: report.agentName,
+                reportReference: report.id,
+                checksCompleted: {
+                  identityAndRights: true,
+                  physicalExistence: true,
+                  utilitiesWaterElectricity: true,
+                  interiorMatch: true,
+                  mediaIntegrity: true,
+                  pricingInCdf: true,
+                },
+              },
+              publicationStatus: 'PUBLISHED',
+              utilities: {
+                ...item.utilities,
+                water: { ...item.utilities.water, testedWorking: report.checklist.waterSupplyTested },
+                electricity: { ...item.utilities.electricity, testedWorking: report.checklist.electricityTested },
               },
             }
           : item
       )
     );
+    setMissions((prev) => prev.map((mission) => mission.id === report.id ? { ...mission, status: 'APPROVED' } : mission));
     triggerToast("Badge 'Vérifié par NZUBU' re-validé pour 90 jours !");
   };
 
@@ -424,7 +502,7 @@ export default function App() {
     setListings((prev) =>
       prev.map((item) =>
         item.id === listingId
-          ? { ...item, availabilityStatus: 'OCCUPIED' }
+          ? { ...item, publicationStatus: 'SUSPENDED' }
           : item
       )
     );
@@ -461,7 +539,7 @@ export default function App() {
     if (clientSubTab === 'EXPLORE') {
       return (
         <ExploreGrid
-          listings={listings}
+          listings={listings.filter((item) => isListingPublic(item))}
           onOpenDetails={(l) => setDetailListing(l)}
           onOpenBooking={(l) => setBookingListing(l)}
           onOpenViewing={(l) => setViewingListing(l)}
@@ -493,6 +571,10 @@ export default function App() {
         onOpenCompliance={() => setShowComplianceModal(true)}
         unresolvedSafetyAlertsCount={securityAlerts.filter((a) => !a.resolved).length}
       />
+
+      <div className="bg-amber-950/70 border-b border-amber-800/50 px-4 py-1.5 text-center text-[11px] text-amber-200">
+        Prototype local : données enregistrées uniquement dans ce navigateur. Comptes, API et paiements réels indisponibles.
+      </div>
 
       {/* Global Urgent Safety Alert Banner when not on Operations Admin */}
       {securityAlerts.some((a) => !a.resolved) && currentRole !== 'OPERATIONS_ADMIN' && (

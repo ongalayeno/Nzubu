@@ -333,7 +333,7 @@ export const PartnerPortal: React.FC<PartnerPortalProps> = ({
                           {item.title}
                         </span>
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold">
-                          Vérifié 90j
+                          {item.publicationStatus === 'PENDING_INSPECTION' ? 'Inspection à venir' : item.publicationStatus === 'PENDING_APPROVAL' ? 'Validation en attente' : item.publicationStatus === 'SUSPENDED' ? 'Suspendu' : 'Vérifié 90j'}
                         </span>
                       </div>
                       <div className="text-xs text-slate-400 mt-1">
@@ -348,6 +348,7 @@ export const PartnerPortal: React.FC<PartnerPortalProps> = ({
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => onToggleAvailability(item.id)}
+                      disabled={item.publicationStatus !== undefined && item.publicationStatus !== 'PUBLISHED'}
                       className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                         item.availabilityStatus === 'AVAILABLE'
                           ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30'

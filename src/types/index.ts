@@ -61,6 +61,7 @@ export interface ListingPrice {
 
 export interface PropertyListing {
   id: string;
+  publicationStatus?: 'DRAFT' | 'PENDING_INSPECTION' | 'PENDING_APPROVAL' | 'PUBLISHED' | 'SUSPENDED';
   title: string;
   description: string;
   rentalMode: RentalMode;
@@ -166,6 +167,7 @@ export interface MissionPhotoEvidence {
 
 export interface FieldMission {
   id: string;
+  listingId?: string;
   unitTitle: string;
   commune: string;
   quartier: string;
@@ -204,6 +206,7 @@ export interface PartnerStats {
 export interface SecurityAlert {
   id: string;
   missionId: string;
+  listingId?: string;
   unitTitle: string;
   commune: string;
   quartier?: string;

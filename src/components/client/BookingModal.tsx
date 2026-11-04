@@ -22,8 +22,8 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
   const [guestName, setGuestName] = useState('Didier Kazadi');
   const [guestPhone, setGuestPhone] = useState('+243 82 450 1234');
-  const [checkInDate, setCheckInDate] = useState('2026-11-12');
-  const [checkOutDate, setCheckOutDate] = useState('2026-11-15');
+  const [checkInDate, setCheckInDate] = useState(() => new Date(Date.now() + 86400000).toISOString().slice(0, 10));
+  const [checkOutDate, setCheckOutDate] = useState(() => new Date(Date.now() + 4 * 86400000).toISOString().slice(0, 10));
   const [adultsCount, setAdultsCount] = useState(2);
   const [paymentChannel, setPaymentChannel] = useState<'VODACOM_MPESA' | 'AIRTEL_MONEY' | 'CASH_AT_CHECKIN'>('VODACOM_MPESA');
   const [acceptPolicy, setAcceptPolicy] = useState(true);
