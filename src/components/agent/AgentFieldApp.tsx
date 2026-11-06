@@ -41,10 +41,15 @@ import {
   Maximize2,
   Sparkles,
   Eye,
-  Upload
+  Upload,
+  FileDown,
+  PenTool,
+  Lock
 } from 'lucide-react';
-import { FieldMission, GpsCoordinates, MissionPhotoEvidence } from '../../types';
+import { FieldMission, GpsCoordinates, MissionPhotoEvidence, AgentSignature } from '../../types';
 import { exportMissionPdf } from '../../utils/exportMissionPdf';
+import { AgentSignaturePad } from './AgentSignaturePad';
+import { ProgressStepper, StepItem } from '../common/ProgressStepper';
 
 interface AgentFieldAppProps {
   missions: FieldMission[];
@@ -54,7 +59,8 @@ interface AgentFieldAppProps {
     outcome: 'PASS' | 'PASS_WITH_DISCLOSURES' | 'NEEDS_CORRECTION' | 'SAFETY_CONCERN', 
     notes: string,
     gpsCoordinates?: GpsCoordinates,
-    photos?: MissionPhotoEvidence[]
+    photos?: MissionPhotoEvidence[],
+    agentSignature?: AgentSignature
   ) => void;
 }
 
@@ -103,6 +109,10 @@ export const AgentFieldApp: React.FC<AgentFieldAppProps> = ({
   const [zoomPhoto, setZoomPhoto] = useState<MissionPhotoEvidence | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  const [agentSignature, setAgentSignature] = useState<AgentSignature | undefined>(
+    selectedMission?.agentSignature
+  );
+
   // Local checklist state
   const [checklist, setChecklist] = useState({
     identityVerified: selectedMission?.checklist.identityVerified || false,
@@ -129,14 +139,14 @@ export const AgentFieldApp: React.FC<AgentFieldAppProps> = ({
   useEffect(() => {
     if (!selectedMission || !hasUnsyncedDraft) return;
     try {
-      localStorage.setItem(`nzubu:draft:${selectedMission.id}`, JSON.stringify({ checklist, gpsCoordinates, photos, decisionOutcome, notes }));
+      localStorage.setItem(`nzubu:draft:${selectedMission.id}`, JSON.stringify({ checklist, gpsCoordinates, photos, decisionOutcome, notes, agentSignature }));
     } catch {
       setGpsStatusMessage('Stockage local saturé : impossible de conserver ce brouillon.');
     }
-  }, [selectedMission, hasUnsyncedDraft, checklist, gpsCoordinates, photos, decisionOutcome, notes]);
+  }, [selectedMission, hasUnsyncedDraft, checklist, gpsCoordinates, photos, decisionOutcome, notes, agentSignature]);
 
   const handleSelectMission = (mission: FieldMission) => {
-    let draft: Partial<{ checklist: FieldMission['checklist']; gpsCoordinates: GpsCoordinates; photos: MissionPhotoEvidence[]; decisionOutcome: typeof decisionOutcome; notes: string }> | null = null;
+    let draft: Partial<{ checklist: FieldMission['checklist']; gpsCoordinates: GpsCoordinates; photos: MissionPhotoEvidence[]; decisionOutcome: typeof decisionOutcome; notes: string; agentSignature: AgentSignature }> | null = null;
     try {
       const saved = localStorage.getItem(`nzubu:draft:${mission.id}`);
       draft = saved ? JSON.parse(saved) : null;
@@ -147,6 +157,7 @@ export const AgentFieldApp: React.FC<AgentFieldAppProps> = ({
     setGpsCoordinates(draft?.gpsCoordinates || mission.gpsCoordinates || null);
     setGpsStatusMessage(null);
     setPhotos(draft?.photos || mission.photos || []);
+    setAgentSignature(draft?.agentSignature || mission.agentSignature);
     setChecklist(draft?.checklist || {
       identityVerified: mission.checklist.identityVerified,
       mandateOrTitleChecked: mission.checklist.mandateOrTitleChecked,
@@ -322,13 +333,18 @@ export const AgentFieldApp: React.FC<AgentFieldAppProps> = ({
       return;
     }
 
-    if (isOfflineSimulated) {
-      setHasUnsyncedDraft(true);
-      alert("Mode hors-ligne : Votre rapport d'inspection, vos photos et vos coordonnées GPS ont été enregistrés dans le stockage local de l'appareil. Ils seront synchronisés dès le retour du réseau.");
+    if (!agentSignature?.agentSignatureDataUrl) {
+      alert("Émargement tactile requis : Veuillez apposer et sceller votre signature d'agent de contrôle avant d'envoyer le rapport au Back-Office.");
       return;
     }
 
-    onCompleteMission(selectedMission.id, checklist, decisionOutcome, notes, gpsCoordinates, photos);
+    if (isOfflineSimulated) {
+      setHasUnsyncedDraft(true);
+      alert("Mode hors-ligne : Votre rapport d'inspection, vos photos, vos signatures et vos coordonnées GPS ont été enregistrés dans le stockage local de l'appareil. Ils seront synchronisés dès le retour du réseau.");
+      return;
+    }
+
+    onCompleteMission(selectedMission.id, checklist, decisionOutcome, notes, gpsCoordinates, photos, agentSignature);
     setHasUnsyncedDraft(false);
     localStorage.removeItem(`nzubu:draft:${selectedMission.id}`);
     setSubmittedFeedback(true);
@@ -360,6 +376,37 @@ export const AgentFieldApp: React.FC<AgentFieldAppProps> = ({
         ? dateB.localeCompare(dateA)
         : dateA.localeCompare(dateB);
     });
+
+  const missionProgressSteps: StepItem[] = [
+    {
+      id: 'step-gps',
+      label: 'Accès & GPS',
+      subLabel: gpsCoordinates && gpsCoordinates.source === 'DEVICE_GPS' ? 'Certifié sur site' : 'À capturer',
+      isCompleted: Boolean(gpsCoordinates && gpsCoordinates.source === 'DEVICE_GPS'),
+      isCurrent: !gpsCoordinates || gpsCoordinates.source !== 'DEVICE_GPS',
+    },
+    {
+      id: 'step-checklist',
+      label: 'Contrôle (9 pts)',
+      subLabel: `${Object.values(checklist).filter(Boolean).length}/9 points`,
+      isCompleted: Object.values(checklist).every(Boolean),
+      isCurrent: Boolean(gpsCoordinates) && !Object.values(checklist).every(Boolean),
+    },
+    {
+      id: 'step-photos',
+      label: 'Preuves Photos',
+      subLabel: `${photos.length}/3 clichés`,
+      isCompleted: photos.length >= 1,
+      isCurrent: Object.values(checklist).every(Boolean) && photos.length === 0,
+    },
+    {
+      id: 'step-signature',
+      label: 'Double Émargement',
+      subLabel: agentSignature?.agentSignatureDataUrl ? 'Signature scellée' : 'À signer au doigt',
+      isCompleted: Boolean(agentSignature?.agentSignatureDataUrl),
+      isCurrent: photos.length >= 1 && !agentSignature?.agentSignatureDataUrl,
+    },
+  ];
 
   return (
     <div className="w-full h-full overflow-y-auto bg-slate-950 text-white p-4 sm:p-6 space-y-6">
@@ -532,6 +579,11 @@ export const AgentFieldApp: React.FC<AgentFieldAppProps> = ({
                     <Phone className="w-3.5 h-3.5" />
                     <span>Appeler le contact</span>
                   </a>
+                </div>
+
+                {/* Progress Stepper for Mission Workflow */}
+                <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800">
+                  <ProgressStepper steps={missionProgressSteps} accentColor="emerald" />
                 </div>
 
                 {/* GPS COORDINATES CAPTURE BOX */}
@@ -1061,6 +1113,18 @@ export const AgentFieldApp: React.FC<AgentFieldAppProps> = ({
                     />
                   </div>
 
+                  {/* ÉMARGEMENT & DOUBLE SIGNATURE TACTILE */}
+                  <AgentSignaturePad
+                    agentName={selectedMission.agentName}
+                    agentId={selectedMission.agentId}
+                    gpsCoordinates={gpsCoordinates || undefined}
+                    initialSignature={agentSignature}
+                    onSaveSignature={(sig) => {
+                      setAgentSignature(sig);
+                      setHasUnsyncedDraft(true);
+                    }}
+                  />
+
                   {/* Action Submit */}
                   <div className="pt-2 flex flex-wrap items-center justify-between gap-3">
                     <div className="space-y-0.5 text-xs text-slate-400">
@@ -1071,7 +1135,12 @@ export const AgentFieldApp: React.FC<AgentFieldAppProps> = ({
                       </div>
                       <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
                         <Camera className="w-3 h-3 text-emerald-400" />
-                        <span>{photos.length} / 3 preuve(s) photographique(s) jointe(s)</span>
+                        <span>{photos.length} / 3 preuve(s) photo(s) jointe(s)</span>
+                        <span>·</span>
+                        <PenTool className="w-3 h-3 text-sky-400" />
+                        <span className={agentSignature?.agentSignatureDataUrl ? 'text-emerald-400 font-semibold' : 'text-amber-400'}>
+                          {agentSignature?.agentSignatureDataUrl ? '✓ Signature scellée' : '⚠ Signature requise'}
+                        </span>
                       </div>
                     </div>
 
@@ -1302,20 +1371,32 @@ export const AgentFieldApp: React.FC<AgentFieldAppProps> = ({
                         </div>
                       )}
 
-                      {/* Action trigger to view full archived report */}
-                      <div className="flex items-center justify-between pt-1">
+                      {/* Action trigger to view full archived report & export PDF */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-800/80">
                         <span className="text-[11px] text-slate-400 font-mono">
                           Horodatage de réalisation : {item.completedAt || item.scheduledTime}
                         </span>
 
-                        <button
-                          onClick={() => setArchiveModalMission(item)}
-                          className="py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 text-xs font-semibold flex items-center gap-1.5 transition-colors"
-                        >
-                          <FileText className="w-3.5 h-3.5" />
-                          <span>Consulter le rapport complet</span>
-                          <ChevronRight className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleExportPdf(item)}
+                            disabled={pdfExporting}
+                            className="py-1.5 px-3 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 hover:text-emerald-200 border border-emerald-500/30 text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-60"
+                            title="Générer et télécharger le document PDF récapitulatif de la mission"
+                          >
+                            <FileDown className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Exporter PDF</span>
+                          </button>
+
+                          <button
+                            onClick={() => setArchiveModalMission(item)}
+                            className="py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-slate-400" />
+                            <span>Consulter rapport</span>
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -1457,6 +1538,33 @@ export const AgentFieldApp: React.FC<AgentFieldAppProps> = ({
                 <p className="text-slate-300 text-[11px] leading-relaxed">
                   {archiveModalMission.notes}
                 </p>
+              </div>
+            )}
+
+            {/* Signature tactile in Modal */}
+            {archiveModalMission.agentSignature?.agentSignatureDataUrl && (
+              <div className="p-3.5 rounded-xl bg-slate-800/40 border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-sky-400">
+                  <span className="flex items-center gap-1.5">
+                    <PenTool className="w-3.5 h-3.5" />
+                    <span>Émargement tactile scellé</span>
+                  </span>
+                  <span className="text-[10px] text-emerald-400 font-mono">
+                    Certifié le {archiveModalMission.agentSignature.agentSignedAt ? new Date(archiveModalMission.agentSignature.agentSignedAt).toLocaleDateString('fr-CD') : ''}
+                  </span>
+                </div>
+                <div className="w-full h-24 bg-slate-950 rounded-lg overflow-hidden border border-slate-700/60 flex items-center justify-center p-2">
+                  <img
+                    src={archiveModalMission.agentSignature.agentSignatureDataUrl}
+                    alt="Signature agent"
+                    className="max-h-full max-w-full object-contain filter invert opacity-90"
+                  />
+                </div>
+                {archiveModalMission.agentSignature.witnessName && (
+                  <div className="text-[10px] text-slate-400 flex items-center justify-between">
+                    <span>Témoin présent : <strong className="text-white">{archiveModalMission.agentSignature.witnessName}</strong> ({archiveModalMission.agentSignature.witnessRole})</span>
+                  </div>
+                )}
               </div>
             )}
 

@@ -63,6 +63,16 @@ export async function exportMissionPdf(mission: FieldMission): Promise<void> {
       ...(mission.photos?.length
         ? mission.photos.map((photo, index) => ({ text: `${index + 1}. ${photo.caption} (${photo.capturedAt})` }))
         : [{ text: 'Aucune photo jointe.' }]),
+      { text: 'Émargement & Double Signature', style: 'subtitle' },
+      ...(mission.agentSignature?.agentSignatureDataUrl
+        ? [
+            { text: `Agent certifiant : ${mission.agentName} (${mission.agentId}) · Signé le ${mission.agentSignature.agentSignedAt ? new Date(mission.agentSignature.agentSignedAt).toLocaleString('fr-CD') : ''}` },
+            { image: mission.agentSignature.agentSignatureDataUrl, width: 140, height: 50, margin: [0, 4, 0, 4] as [number, number, number, number] },
+            ...(mission.agentSignature.witnessName
+              ? [{ text: `Témoin / Bailleur présent : ${mission.agentSignature.witnessName} (${mission.agentSignature.witnessRole || 'Présent'})` }]
+              : []),
+          ]
+        : [{ text: 'Émargement en attente de signature tactile sur l’application agent.' }]),
     ],
     footer: (page, pages) => ({
       text: `NZUBU · Mission ${mission.id} · ${page} / ${pages}`,

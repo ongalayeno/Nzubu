@@ -19,6 +19,7 @@ import {
   Send
 } from 'lucide-react';
 import { BookingRequest, ViewingRequest, PropertyListing } from '../../types';
+import { ProgressStepper, StepItem } from '../common/ProgressStepper';
 
 interface ClientRequestsViewProps {
   bookings: BookingRequest[];
@@ -48,6 +49,37 @@ export const ClientRequestsView: React.FC<ClientRequestsViewProps> = ({
     setSelectedBookingForPayment(null);
     setPaymentRefInput('');
   };
+
+  const getBookingSteps = (b: BookingRequest): StepItem[] => [
+    {
+      id: 'step-req',
+      label: 'Demande émise',
+      subLabel: b.createdAt,
+      isCompleted: true,
+      isCurrent: b.status === 'REQUESTED',
+    },
+    {
+      id: 'step-host',
+      label: 'Accord de l’hôte',
+      subLabel: b.status === 'REQUESTED' ? 'En attente' : 'Validé',
+      isCompleted: b.status !== 'REQUESTED',
+      isCurrent: b.status === 'HOST_ACCEPTED_TERMS',
+    },
+    {
+      id: 'step-pay',
+      label: 'Avance 20%',
+      subLabel: b.status === 'PAYMENT_DECLARED' ? 'Vérification' : 'M-Pesa / Airtel',
+      isCompleted: b.status === 'CONFIRMED' || b.status === 'COMPLETED',
+      isCurrent: b.status === 'HOST_ACCEPTED_TERMS' || b.status === 'PAYMENT_DECLARED',
+    },
+    {
+      id: 'step-confirm',
+      label: 'Séjour Confirmé',
+      subLabel: 'Accueil & Clés',
+      isCompleted: b.status === 'CONFIRMED' || b.status === 'COMPLETED',
+      isCurrent: false,
+    },
+  ];
 
   return (
     <div className="w-full h-full overflow-y-auto bg-slate-950 text-white p-4 sm:p-6 space-y-6">
@@ -150,6 +182,11 @@ export const ClientRequestsView: React.FC<ClientRequestsViewProps> = ({
                         </span>
                       )}
                     </div>
+                  </div>
+
+                  {/* Progress Stepper for booking lifecycle */}
+                  <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80">
+                    <ProgressStepper steps={getBookingSteps(booking)} accentColor="rose" />
                   </div>
 
                   {/* Financial & Hold details */}

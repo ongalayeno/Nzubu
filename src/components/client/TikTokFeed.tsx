@@ -3,13 +3,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
-import { PropertyListing } from '../../types';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { PropertyListing, SponsoredAd } from '../../types';
 import { VideoCard } from './VideoCard';
+import { SponsoredVideoCard } from './SponsoredVideoCard';
+import { isAdActive } from '../../domain/ads';
 import { Filter, SlidersHorizontal, MapPin, Sparkles } from 'lucide-react';
 
 interface TikTokFeedProps {
   listings: PropertyListing[];
+  sponsoredAds?: SponsoredAd[];
   onOpenDetails: (listing: PropertyListing) => void;
   onOpenVerification: (listing: PropertyListing) => void;
   onOpenBooking: (listing: PropertyListing) => void;
@@ -19,10 +22,16 @@ interface TikTokFeedProps {
   onChangeCommuneFilter: (commune: string) => void;
   activeModeFilter: string;
   onChangeModeFilter: (mode: string) => void;
+  onAdClicked?: (adId: string) => void;
 }
+
+type FeedItem = 
+  | { type: 'LISTING'; data: PropertyListing }
+  | { type: 'AD'; data: SponsoredAd };
 
 export const TikTokFeed: React.FC<TikTokFeedProps> = ({
   listings,
+  sponsoredAds = [],
   onOpenDetails,
   onOpenVerification,
   onOpenBooking,
@@ -32,18 +41,46 @@ export const TikTokFeed: React.FC<TikTokFeedProps> = ({
   onChangeCommuneFilter,
   activeModeFilter,
   onChangeModeFilter,
+  onAdClicked,
 }) => {
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [isMuted, setIsMuted] = useState<boolean>(true); // Muted by default per brief §13.6
   const containerRef = useRef<HTMLDivElement>(null);
   const touchStartY = useRef<number>(0);
 
-  // Keep index within bounds if listings list changes
-  useEffect(() => {
-    if (currentIndex >= listings.length) {
-      setCurrentIndex(Math.max(0, listings.length - 1));
+  // Build combined feed: active listings interleaved with active video ads
+  const combinedFeed: FeedItem[] = useMemo(() => {
+    // Only include video ads that are strictly active and not expired
+    const activeVideoAds = sponsoredAds.filter(
+      (ad) => ad.format === 'VERTICAL_VIDEO_FEED' && isAdActive(ad)
+    );
+
+    const items: FeedItem[] = [];
+    let adIndex = 0;
+
+    listings.forEach((listing, index) => {
+      items.push({ type: 'LISTING', data: listing });
+      // Insert an ad after every 2nd or 3rd listing if available
+      if ((index + 1) % 2 === 0 && adIndex < activeVideoAds.length) {
+        items.push({ type: 'AD', data: activeVideoAds[adIndex] });
+        adIndex++;
+      }
+    });
+
+    // If there are still ads and no listings, or at least one ad
+    if (items.length === 0 && activeVideoAds.length > 0) {
+      activeVideoAds.forEach((ad) => items.push({ type: 'AD', data: ad }));
     }
-  }, [listings.length, currentIndex]);
+
+    return items;
+  }, [listings, sponsoredAds]);
+
+  // Keep index within bounds if feed changes
+  useEffect(() => {
+    if (currentIndex >= combinedFeed.length) {
+      setCurrentIndex(Math.max(0, combinedFeed.length - 1));
+    }
+  }, [combinedFeed.length, currentIndex]);
 
   // Keyboard navigation (ArrowUp, ArrowDown)
   useEffect(() => {
@@ -61,10 +98,10 @@ export const TikTokFeed: React.FC<TikTokFeedProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentIndex, listings.length]);
+  }, [currentIndex, combinedFeed.length]);
 
   const handleNext = () => {
-    if (currentIndex < listings.length - 1) {
+    if (currentIndex < combinedFeed.length - 1) {
       setCurrentIndex((prev) => prev + 1);
     }
   };
@@ -105,7 +142,7 @@ export const TikTokFeed: React.FC<TikTokFeedProps> = ({
     }
   };
 
-  if (listings.length === 0) {
+  if (combinedFeed.length === 0) {
     return (
       <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-slate-950 text-white">
         <Filter className="w-12 h-12 text-slate-600 mb-3" />
@@ -126,7 +163,7 @@ export const TikTokFeed: React.FC<TikTokFeedProps> = ({
     );
   }
 
-  const currentListing = listings[currentIndex];
+  const currentItem = combinedFeed[currentIndex];
 
   return (
     <div 
@@ -203,27 +240,41 @@ export const TikTokFeed: React.FC<TikTokFeedProps> = ({
         </button>
       </div>
 
-      {/* Main active video */}
-      <VideoCard
-        listing={currentListing}
-        isActive={true}
-        isMuted={isMuted}
-        onToggleMute={() => setIsMuted((prev) => !prev)}
-        onOpenDetails={onOpenDetails}
-        onOpenVerification={onOpenVerification}
-        onOpenBooking={onOpenBooking}
-        onOpenViewing={onOpenViewing}
-        onToggleFavorite={onToggleFavorite}
-        onNextVideo={handleNext}
-        onPrevVideo={handlePrev}
-        hasPrev={currentIndex > 0}
-        hasNext={currentIndex < listings.length - 1}
-      />
+      {/* Main active item: either Listing VideoCard or SponsoredVideoCard */}
+      {currentItem.type === 'LISTING' ? (
+        <VideoCard
+          listing={currentItem.data}
+          isActive={true}
+          isMuted={isMuted}
+          onToggleMute={() => setIsMuted((prev) => !prev)}
+          onOpenDetails={onOpenDetails}
+          onOpenVerification={onOpenVerification}
+          onOpenBooking={onOpenBooking}
+          onOpenViewing={onOpenViewing}
+          onToggleFavorite={onToggleFavorite}
+          onNextVideo={handleNext}
+          onPrevVideo={handlePrev}
+          hasPrev={currentIndex > 0}
+          hasNext={currentIndex < combinedFeed.length - 1}
+        />
+      ) : (
+        <SponsoredVideoCard
+          ad={currentItem.data}
+          isActive={true}
+          isMuted={isMuted}
+          onToggleMute={() => setIsMuted((prev) => !prev)}
+          onNextVideo={handleNext}
+          onPrevVideo={handlePrev}
+          hasPrev={currentIndex > 0}
+          hasNext={currentIndex < combinedFeed.length - 1}
+          onAdClicked={onAdClicked}
+        />
+      )}
 
       {/* Index indicator pill (top right) */}
       <div className="absolute top-3.5 right-4 z-30 pointer-events-none">
         <span className="text-[11px] font-bold text-white/90 bg-black/50 backdrop-blur-md px-2 py-0.5 rounded-full border border-white/10 tabular-nums">
-          {currentIndex + 1} / {listings.length}
+          {currentIndex + 1} / {combinedFeed.length}
         </span>
       </div>
     </div>

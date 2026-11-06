@@ -23,20 +23,33 @@ import {
   LocateFixed,
   Camera,
   Image as ImageIcon,
-  ShieldAlert
+  ShieldAlert,
+  Sparkles,
+  Clock,
+  Trash2,
+  Play,
+  Pause,
+  Plus,
+  Video,
+  CreditCard
 } from 'lucide-react';
-import { PropertyListing, FieldMission, BookingRequest, SecurityAlert } from '../../types';
+import { PropertyListing, FieldMission, BookingRequest, SecurityAlert, SponsoredAd } from '../../types';
 import { canApproveListing, isListingPublic } from '../../domain/listing';
+import { isAdActive, getRemainingAdTime, partitionAds } from '../../domain/ads';
 
 interface BackOfficeViewProps {
   listings: PropertyListing[];
   missions: FieldMission[];
   bookings: BookingRequest[];
   securityAlerts?: SecurityAlert[];
+  sponsoredAds?: SponsoredAd[];
   onApproveListingBadge: (listingId: string) => void;
   onSuspendListing: (listingId: string) => void;
   onAssignMission: (missionId: string, agentName: string) => void;
   onResolveSecurityAlert?: (alertId: string) => void;
+  onToggleAdStatus?: (adId: string) => void;
+  onDeleteAd?: (adId: string) => void;
+  onOpenCreateAd?: () => void;
 }
 
 export const BackOfficeView: React.FC<BackOfficeViewProps> = ({
@@ -44,12 +57,17 @@ export const BackOfficeView: React.FC<BackOfficeViewProps> = ({
   missions,
   bookings,
   securityAlerts = [],
+  sponsoredAds = [],
   onApproveListingBadge,
   onSuspendListing,
   onAssignMission,
   onResolveSecurityAlert,
+  onToggleAdStatus,
+  onDeleteAd,
+  onOpenCreateAd,
 }) => {
-  const [activeTab, setActiveTab] = useState<'VALIDATIONS' | 'MISSIONS' | 'COMPLIANCE' | 'METRICS'>('VALIDATIONS');
+  const [activeTab, setActiveTab] = useState<'VALIDATIONS' | 'MISSIONS' | 'COMPLIANCE' | 'MONETIZATION'>('VALIDATIONS');
+  const [adFilter, setAdFilter] = useState<'ALL' | 'ACTIVE' | 'EXPIRED'>('ALL');
 
   const formatCDF = (num: number) => new Intl.NumberFormat('fr-CD').format(num);
 
@@ -277,6 +295,18 @@ export const BackOfficeView: React.FC<BackOfficeViewProps> = ({
           >
             <Scale className="w-3.5 h-3.5" />
             <span>Registre Légal & Conformité RDC</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('MONETIZATION')}
+            className={`px-3.5 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1.5 ${
+              activeTab === 'MONETIZATION'
+                ? 'bg-amber-500 text-slate-950 font-black shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span>Régie Pub & MaishaPay ({sponsoredAds.length})</span>
           </button>
         </div>
 
@@ -587,6 +617,256 @@ export const BackOfficeView: React.FC<BackOfficeViewProps> = ({
                   </ul>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 4: Monetization & Sponsored Ads Engine (MaishaPay RDC) */}
+        {activeTab === 'MONETIZATION' && (
+          <div className="space-y-5">
+            {/* Top Bar with Create Ad button */}
+            <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-slate-900 to-rose-500/10 border border-amber-500/30">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-amber-400">
+                    Monétisation & Revenus Sponsorisés
+                  </span>
+                  <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded border border-emerald-500/30">
+                    MaishaPay Mobile Money
+                  </span>
+                </div>
+                <h3 className="text-lg font-black text-white mt-0.5">
+                  Gestionnaire de Régie Publicitaire & Expiration Automatique
+                </h3>
+                <p className="text-xs text-slate-300">
+                  Vidéos TikTok (9:16), bannières catalogue et annonces boostées avec retrait automatique à échéance.
+                </p>
+              </div>
+
+              {onOpenCreateAd && (
+                <button
+                  onClick={onOpenCreateAd}
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-600 hover:to-rose-600 text-white text-xs font-black flex items-center gap-2 shadow-lg shadow-rose-500/20 active:scale-95 transition-all"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Nouvelle Campagne (MaishaPay)</span>
+                </button>
+              )}
+            </div>
+
+            {/* Metrics Row */}
+            {(() => {
+              const { activeAds, expiredAds, totalRevenueCdf } = partitionAds(sponsoredAds);
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800">
+                    <span className="text-xs text-slate-400 block font-semibold">Total Revenus Encaissés (CDF)</span>
+                    <div className="text-2xl font-black text-emerald-400 font-mono mt-1">
+                      {formatCDF(totalRevenueCdf)} CDF
+                    </div>
+                    <span className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
+                      <CreditCard className="w-3 h-3 text-emerald-400" />
+                      M-Pesa, Airtel, Orange via MaishaPay
+                    </span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800">
+                    <span className="text-xs text-slate-400 block font-semibold">Campagnes Actives en Diffusion</span>
+                    <div className="text-2xl font-black text-amber-400 font-mono mt-1">
+                      {activeAds.length}
+                    </div>
+                    <span className="text-[10px] text-amber-300">
+                      Visibles dans le feed vidéo & catalogue
+                    </span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800">
+                    <span className="text-xs text-slate-400 block font-semibold">Campagnes Expirées / Retirées</span>
+                    <div className="text-2xl font-black text-slate-400 font-mono mt-1">
+                      {expiredAds.length}
+                    </div>
+                    <span className="text-[10px] text-slate-500">
+                      Retrait automatique programmé sans action manuelle
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Filters bar */}
+            <div className="flex items-center justify-between gap-3 border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setAdFilter('ALL')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors ${
+                    adFilter === 'ALL'
+                      ? 'bg-slate-800 text-white border border-slate-700'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Toutes ({sponsoredAds.length})
+                </button>
+                <button
+                  onClick={() => setAdFilter('ACTIVE')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors ${
+                    adFilter === 'ACTIVE'
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Actives ({sponsoredAds.filter((a) => isAdActive(a)).length})
+                </button>
+                <button
+                  onClick={() => setAdFilter('EXPIRED')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors ${
+                    adFilter === 'EXPIRED'
+                      ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Expirées ({sponsoredAds.filter((a) => !isAdActive(a)).length})
+                </button>
+              </div>
+
+              <span className="text-[11px] text-slate-400 hidden sm:inline">
+                Durées : 3j, 7j, 14j, 30j · Strictement en Franc Congolais
+              </span>
+            </div>
+
+            {/* Campaigns List */}
+            <div className="space-y-3">
+              {sponsoredAds
+                .filter((ad) => {
+                  if (adFilter === 'ACTIVE') return isAdActive(ad);
+                  if (adFilter === 'EXPIRED') return !isAdActive(ad);
+                  return true;
+                })
+                .map((ad) => {
+                  const active = isAdActive(ad);
+                  const remaining = getRemainingAdTime(ad.expiresAt);
+
+                  return (
+                    <div
+                      key={ad.id}
+                      className={`p-4 rounded-2xl border transition-all space-y-3 ${
+                        active
+                          ? 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                          : 'bg-slate-950/70 border-slate-900 opacity-75'
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                          <div className="w-16 h-16 rounded-xl bg-slate-950 overflow-hidden shrink-0 border border-slate-800 relative">
+                            <img
+                              src={ad.thumbnailUrl || ad.mediaUrl}
+                              alt={ad.title}
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute top-1 left-1">
+                              {ad.format === 'VERTICAL_VIDEO_FEED' ? (
+                                <span className="p-1 rounded bg-rose-500 text-white flex items-center justify-center">
+                                  <Video className="w-2.5 h-2.5" />
+                                </span>
+                              ) : (
+                                <span className="p-1 rounded bg-amber-500 text-slate-950 flex items-center justify-center">
+                                  <ImageIcon className="w-2.5 h-2.5" />
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-xs font-bold text-amber-400">
+                                {ad.id}
+                              </span>
+                              <h4 className="text-sm font-bold text-white">
+                                {ad.title}
+                              </h4>
+                              {active ? (
+                                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-[10px] border border-emerald-500/30 flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                  <span>En diffusion</span>
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-bold text-[10px] border border-rose-500/30">
+                                  Expirée (Masquée)
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="text-xs text-slate-400 mt-1 flex flex-wrap items-center gap-2">
+                              <span>Annonceur : <strong className="text-white">{ad.advertiserName}</strong></span>
+                              <span>·</span>
+                              <span>WhatsApp : <strong className="font-mono text-slate-300">{ad.advertiserPhone}</strong></span>
+                              <span>·</span>
+                              <span>Format : <strong className="text-slate-300">{ad.format === 'VERTICAL_VIDEO_FEED' ? 'Vidéo 9:16' : 'Bannière'}</strong></span>
+                            </div>
+
+                            <p className="text-[11px] text-slate-400 mt-1 line-clamp-1">
+                              {ad.tagline || ad.description}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Timing and Pricing pill */}
+                        <div className="text-right space-y-1">
+                          <div className="text-base font-black text-white font-mono">
+                            {formatCDF(ad.pricePaidCdf)} CDF
+                          </div>
+                          <div className="text-[10px] text-emerald-400 font-semibold">
+                            Règlement MaishaPay ({ad.durationDays} jours)
+                          </div>
+                          <div className={`text-[11px] font-mono font-bold flex items-center justify-end gap-1 ${active ? 'text-amber-300' : 'text-slate-500'}`}>
+                            <Clock className="w-3 h-3" />
+                            <span>{remaining.label}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Performance & Operations Action Bar */}
+                      <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-4 text-[11px] text-slate-400">
+                          <span>Impressions : <strong className="text-white font-mono">{ad.impressionsCount}</strong></span>
+                          <span>Clics / WhatsApp : <strong className="text-emerald-400 font-mono">{ad.clicksCount}</strong></span>
+                          <span>Activé le : <strong className="text-slate-300">{new Date(ad.startsAt).toLocaleDateString('fr-CD')}</strong></span>
+                          <span>Échéance : <strong className="text-slate-300">{new Date(ad.expiresAt).toLocaleDateString('fr-CD')}</strong></span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {onToggleAdStatus && (
+                            <button
+                              onClick={() => onToggleAdStatus(ad.id)}
+                              className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold transition-colors flex items-center gap-1"
+                            >
+                              {ad.status === 'ACTIVE' ? (
+                                <>
+                                  <Pause className="w-3 h-3" />
+                                  <span>Mettre en pause</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Play className="w-3 h-3 text-emerald-400" />
+                                  <span>Réactiver</span>
+                                </>
+                              )}
+                            </button>
+                          )}
+
+                          {onDeleteAd && (
+                            <button
+                              onClick={() => onDeleteAd(ad.id)}
+                              className="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/20 text-[11px] font-semibold transition-colors flex items-center gap-1"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>Nettoyer</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
             </div>
           </div>
         )}

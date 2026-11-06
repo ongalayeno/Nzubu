@@ -193,7 +193,51 @@ export interface FieldMission {
   notes?: string;
   gpsCoordinates?: GpsCoordinates;
   photos?: MissionPhotoEvidence[];
+  agentSignature?: AgentSignature;
   completedAt?: string;
+}
+
+export interface AgentSignature {
+  agentSignatureDataUrl: string;
+  agentSignedAt: string;
+  witnessName?: string;
+  witnessRole?: 'OWNER' | 'MANDATAIRE' | 'SECURITY_GUARD' | 'PROPERTY_MANAGER';
+  witnessSignatureDataUrl?: string;
+  witnessSignedAt?: string;
+}
+
+export type AdCategory = 
+  | 'REAL_ESTATE_BOOST' 
+  | 'SOLAR_ENERGY' 
+  | 'SERVICES_DEMENAGEMENT' 
+  | 'DECORATION_FURNITURE' 
+  | 'SECURITY_AGENCY' 
+  | 'LOCAL_BUSINESS';
+
+export interface SponsoredAd {
+  id: string;
+  title: string;
+  advertiserName: string;
+  advertiserPhone: string;
+  category: AdCategory;
+  format: 'VERTICAL_VIDEO_FEED' | 'CATALOG_BANNER';
+  mediaUrl: string;
+  thumbnailUrl: string;
+  tagline: string;
+  description: string;
+  ctaText: string;
+  ctaActionType: 'WHATSAPP' | 'PHONE' | 'URL';
+  ctaTarget: string;
+  badgeLabel: string;
+  pricePaidCdf: number;
+  paymentProvider: 'MAISHAPAY';
+  durationDays: number;
+  startsAt: string;
+  expiresAt: string;
+  status: 'ACTIVE' | 'EXPIRED' | 'PAUSED';
+  impressionsCount: number;
+  clicksCount: number;
+  featuredListingId?: string;
 }
 
 export interface PartnerStats {

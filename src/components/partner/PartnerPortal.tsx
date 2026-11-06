@@ -29,6 +29,7 @@ interface PartnerPortalProps {
   onAcceptBooking: (bookingId: string) => void;
   onConfirmHostPayment: (bookingId: string) => void;
   onToggleAvailability: (listingId: string) => void;
+  onOpenCreateAd?: () => void;
 }
 
 export const PartnerPortal: React.FC<PartnerPortalProps> = ({
@@ -38,6 +39,7 @@ export const PartnerPortal: React.FC<PartnerPortalProps> = ({
   onAcceptBooking,
   onConfirmHostPayment,
   onToggleAvailability,
+  onOpenCreateAd,
 }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'LISTINGS' | 'BOOKINGS' | 'INVOICES'>('BOOKINGS');
@@ -74,13 +76,24 @@ export const PartnerPortal: React.FC<PartnerPortalProps> = ({
             </p>
           </div>
 
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-2 shadow-lg shadow-amber-500/20 transition-all shrink-0"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Déposer un nouveau logement</span>
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {onOpenCreateAd && (
+              <button
+                onClick={onOpenCreateAd}
+                className="py-2.5 px-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-600 hover:to-rose-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-rose-500/20 transition-all active:scale-95"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Booster / Pub (MaishaPay)</span>
+              </button>
+            )}
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-2 shadow-lg shadow-amber-500/20 transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Déposer un nouveau logement</span>
+            </button>
+          </div>
         </div>
 
         {/* 4 Metrics Strip */}

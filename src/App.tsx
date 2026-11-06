@@ -10,13 +10,16 @@ import {
   BookingRequest, 
   ViewingRequest, 
   FieldMission,
-  SecurityAlert
+  SecurityAlert,
+  SponsoredAd,
+  AgentSignature
 } from './types';
 import { 
   INITIAL_LISTINGS, 
   INITIAL_BOOKINGS, 
   INITIAL_VIEWINGS, 
-  INITIAL_MISSIONS 
+  INITIAL_MISSIONS,
+  INITIAL_SPONSORED_ADS
 } from './data/mockData';
 import { Header } from './components/Header';
 import { canApproveListing, isListingPublic } from './domain/listing';
@@ -33,6 +36,7 @@ import { PartnerPortal } from './components/partner/PartnerPortal';
 import { AgentFieldApp } from './components/agent/AgentFieldApp';
 import { BackOfficeView } from './components/admin/BackOfficeView';
 import { ComplianceBadgeModal } from './components/legal/ComplianceBadgeModal';
+import { CreateSponsoredAdModal } from './components/ads/CreateSponsoredAdModal';
 import { 
   Video, 
   Search, 
@@ -59,6 +63,8 @@ export default function App() {
   const [bookings, setBookings] = usePersistentState<BookingRequest[]>('nzubu:bookings:v2', INITIAL_BOOKINGS);
   const [viewings, setViewings] = usePersistentState<ViewingRequest[]>('nzubu:viewings:v2', INITIAL_VIEWINGS);
   const [missions, setMissions] = usePersistentState<FieldMission[]>('nzubu:missions:v2', INITIAL_MISSIONS);
+  const [sponsoredAds, setSponsoredAds] = usePersistentState<SponsoredAd[]>('nzubu:sponsored_ads:v2', INITIAL_SPONSORED_ADS);
+  const [showCreateAdModal, setShowCreateAdModal] = useState<boolean>(false);
 
   // Security alerts registry
   const [securityAlerts, setSecurityAlerts] = usePersistentState<SecurityAlert[]>('nzubu:alerts:v2', [
@@ -367,13 +373,41 @@ export default function App() {
     );
   };
 
+  const handleCreateAd = (newAd: SponsoredAd) => {
+    setSponsoredAds((prev) => [newAd, ...prev]);
+    triggerToast("Campagne publicitaire activée via MaishaPay ! Retrait automatique configuré.");
+  };
+
+  const handleToggleAdStatus = (adId: string) => {
+    setSponsoredAds((prev) =>
+      prev.map((a) =>
+        a.id === adId
+          ? { ...a, status: a.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE' }
+          : a
+      )
+    );
+    triggerToast("Statut de la campagne publicitaire mis à jour.");
+  };
+
+  const handleDeleteAd = (adId: string) => {
+    setSponsoredAds((prev) => prev.filter((a) => a.id !== adId));
+    triggerToast("Campagne publicitaire supprimée définitivement de la régie.");
+  };
+
+  const handleAdClicked = (adId: string) => {
+    setSponsoredAds((prev) =>
+      prev.map((a) => (a.id === adId ? { ...a, clicksCount: a.clicksCount + 1 } : a))
+    );
+  };
+
   const handleCompleteMission = (
     missionId: string,
     checklist: Record<string, boolean>,
     outcome: 'PASS' | 'PASS_WITH_DISCLOSURES' | 'NEEDS_CORRECTION' | 'SAFETY_CONCERN',
     notes: string,
     gpsCoordinates?: import('./types').GpsCoordinates,
-    photos?: import('./types').MissionPhotoEvidence[]
+    photos?: import('./types').MissionPhotoEvidence[],
+    agentSignature?: import('./types').AgentSignature
   ) => {
     const existingMission = missions.find((m) => m.id === missionId);
 
@@ -388,6 +422,7 @@ export default function App() {
               notes,
               gpsCoordinates: gpsCoordinates || m.gpsCoordinates,
               photos: photos && photos.length > 0 ? photos : m.photos || [],
+              agentSignature: agentSignature || m.agentSignature,
               completedAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
             }
           : m
@@ -524,6 +559,7 @@ export default function App() {
       return (
         <TikTokFeed
           listings={activeFeedListings}
+          sponsoredAds={sponsoredAds}
           onOpenDetails={(l) => setDetailListing(l)}
           onOpenVerification={(l) => setVerificationListing(l)}
           onOpenBooking={(l) => setBookingListing(l)}
@@ -533,6 +569,7 @@ export default function App() {
           onChangeCommuneFilter={(c) => setFeedCommuneFilter(c)}
           activeModeFilter={feedModeFilter}
           onChangeModeFilter={(m) => setFeedModeFilter(m)}
+          onAdClicked={handleAdClicked}
         />
       );
     }
@@ -540,10 +577,12 @@ export default function App() {
       return (
         <ExploreGrid
           listings={listings.filter((item) => isListingPublic(item))}
+          sponsoredAds={sponsoredAds}
           onOpenDetails={(l) => setDetailListing(l)}
           onOpenBooking={(l) => setBookingListing(l)}
           onOpenViewing={(l) => setViewingListing(l)}
           onToggleFavorite={handleToggleFavorite}
+          onOpenCreateAd={() => setShowCreateAdModal(true)}
         />
       );
     }
@@ -625,6 +664,7 @@ export default function App() {
                     onAcceptBooking={handleAcceptBooking}
                     onConfirmHostPayment={handleConfirmHostPayment}
                     onToggleAvailability={handleToggleAvailability}
+                    onOpenCreateAd={() => setShowCreateAdModal(true)}
                   />
                 )}
                 {currentRole === 'FIELD_AGENT' && (
@@ -639,10 +679,14 @@ export default function App() {
                     missions={missions}
                     bookings={bookings}
                     securityAlerts={securityAlerts}
+                    sponsoredAds={sponsoredAds}
                     onApproveListingBadge={handleApproveListingBadge}
                     onSuspendListing={handleSuspendListing}
                     onAssignMission={handleAssignMission}
                     onResolveSecurityAlert={handleResolveSecurityAlert}
+                    onToggleAdStatus={handleToggleAdStatus}
+                    onDeleteAd={handleDeleteAd}
+                    onOpenCreateAd={() => setShowCreateAdModal(true)}
                   />
                 )}
               </div>
@@ -746,6 +790,7 @@ export default function App() {
                   onAcceptBooking={handleAcceptBooking}
                   onConfirmHostPayment={handleConfirmHostPayment}
                   onToggleAvailability={handleToggleAvailability}
+                  onOpenCreateAd={() => setShowCreateAdModal(true)}
                 />
               )}
               {currentRole === 'FIELD_AGENT' && (
@@ -760,10 +805,14 @@ export default function App() {
                   missions={missions}
                   bookings={bookings}
                   securityAlerts={securityAlerts}
+                  sponsoredAds={sponsoredAds}
                   onApproveListingBadge={handleApproveListingBadge}
                   onSuspendListing={handleSuspendListing}
                   onAssignMission={handleAssignMission}
                   onResolveSecurityAlert={handleResolveSecurityAlert}
+                  onToggleAdStatus={handleToggleAdStatus}
+                  onDeleteAd={handleDeleteAd}
+                  onOpenCreateAd={() => setShowCreateAdModal(true)}
                 />
               )}
             </div>
@@ -808,6 +857,13 @@ export default function App() {
       {showComplianceModal && (
         <ComplianceBadgeModal
           onClose={() => setShowComplianceModal(false)}
+        />
+      )}
+
+      {showCreateAdModal && (
+        <CreateSponsoredAdModal
+          onClose={() => setShowCreateAdModal(false)}
+          onAdCreated={handleCreateAd}
         />
       )}
 
