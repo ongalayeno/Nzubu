@@ -8,6 +8,7 @@ RUN npm run lint && npm test && npm run build
 FROM node:24-alpine
 ENV NODE_ENV=production
 WORKDIR /app
+RUN apk add --no-cache ffmpeg
 COPY --from=build /app/package*.json ./
 RUN npm ci --omit=dev
 COPY --from=build /app/dist ./dist

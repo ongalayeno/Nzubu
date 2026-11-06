@@ -15,7 +15,7 @@ export async function storePrivate(key: string, bytes: Buffer, mime: string) {
     return;
   }
   if (process.env.NODE_ENV === 'production') throw new Error('PRIVATE_S3_BUCKET requis en production');
-  await mkdir(directory, { recursive: true });
+  await mkdir(path.dirname(path.join(directory, key)), { recursive: true });
   await writeFile(path.join(directory, key), bytes, { flag: 'wx' });
 }
 

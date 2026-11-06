@@ -13,7 +13,11 @@ npm ci
 npm run dev:full
 ```
 
-Ouvrir `http://localhost:3000/`. Le compte administrateur de développement est l'adresse `BOOTSTRAP_ADMIN_EMAIL` du fichier `.env`. Sans clé Brevo, son code de connexion apparaît uniquement dans la sortie de `npm run api`. Créer ensuite les comptes partenaire et agent depuis l'interface administrateur. Le mode démo est activé en définissant `VITE_API_MODE=demo` dans `.env`, puis en relançant Vite.
+Ouvrir `http://localhost:3000/`. Dans **Inscription**, saisir une adresse e-mail, un téléphone facultatif au format international et un mot de passe d'au moins 10 caractères. Un code de vérification est envoyé par e-mail. Une fois le code saisi, la connexion se fait par e-mail ou téléphone et mot de passe. **Mot de passe oublié ?** permet de le renouveler avec un code envoyé par e-mail.
+
+L'inscription publique crée un compte **client**. Pour le premier administrateur, utiliser l'adresse `BOOTSTRAP_ADMIN_EMAIL` du fichier `.env` dans **Inscription** : après vérification de l'e-mail, le rôle administrateur précréé est conservé. Cet administrateur peut ensuite créer des comptes partenaire, agent et administrateur dans son espace. Le titulaire de chaque compte passe par **Inscription** pour vérifier son propre e-mail et définir son mot de passe. Un utilisateur ne peut pas choisir librement un rôle privilégié. Le mode démo est activé en définissant `VITE_API_MODE=demo` dans `.env`, puis en relançant Vite.
+
+En développement, les codes destinés aux adresses fictives `@test.local` sont écrits dans `nzubu-otp.log` pour les essais automatisés. Les adresses réelles utilisent Brevo si sa clé est configurée. En production, la clé Brevo est obligatoire et les codes sont envoyés exclusivement par e-mail.
 
 ## Vérifications
 
@@ -37,10 +41,11 @@ Les tests d'intégration exigent l'API et PostgreSQL en cours d'exécution. Ils 
 2. Créer une clé API v3 dans **Paramètres → SMTP et API → Clés API**. Garder cette clé privée.
 3. Ouvrir le fichier local `.env` et remplacer la ligne `BREVO_API_KEY=""` par `BREVO_API_KEY="votre_clé_api"`. Ce fichier est exclu de Git. Ne pas placer la clé dans `.env.example` ni dans le navigateur.
 4. Redémarrer l'API avec `npm run api` (ou `npm run dev:full`). L'adresse d'expéditeur et l'adresse administrateur sont déjà configurées dans `.env`.
-5. Sur `http://localhost:3000`, demander un code pour `ongalayeno@gmail.com`, puis vérifier la boîte de réception et les indésirables. Tester ensuite `liwadvisorgroup@gmail.com` pour le compte administrateur. Les envois réels ne commencent qu'après installation de la clé.
+5. Sur `http://localhost:3000`, inscrire `ongalayeno@gmail.com`, puis vérifier la boîte de réception et les indésirables. Tester ensuite `liwadvisorgroup@gmail.com` pour activer le compte administrateur précréé. Les envois réels ne commencent qu'après installation de la clé.
 - Construire l'image avec `docker build -t nzubu .`. Le conteneur sert l'API et l'interface compilée sur le port 3001.
 - Le stockage objet compatible S3 doit être privé. Le service doit disposer d'un accès limité à ce seul bucket. Ne pas rendre les pièces ou photos publiques.
 - Les sauvegardes PostgreSQL, la rétention et la restauration doivent être configurées et testées sur l'hébergement choisi.
 - Les validations réglementaires et de transfert de données doivent précéder l'activation des utilisateurs et des envois réels.
 
 Voir [READINESS.md](READINESS.md) pour les travaux qui restent avant un pilote public.
+Voir [P0_RECETTE.md](P0_RECETTE.md) pour les scénarios fictifs de bout en bout et les décisions de direction encore ouvertes.

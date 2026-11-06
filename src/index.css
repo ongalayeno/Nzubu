@@ -9,6 +9,11 @@
   }
 }
 
+.nzubu-live section[id],
+.nzubu-live [id^="admin-listing-"] {
+  scroll-margin-top: 5rem;
+}
+
 /* Hide scrollbars for snap feeds while keeping functionality */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
@@ -16,4 +21,18 @@
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+@media (max-height: 650px) {
+  .client-rail {
+    top: 22%;
+    gap: .35rem;
+  }
+  .client-rail > button:first-child,
+  .client-rail > button:last-child {
+    display: none;
+  }
+  .client-rail > button span {
+    padding: .5rem;
+  }
 }

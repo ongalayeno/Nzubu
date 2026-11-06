@@ -9,10 +9,11 @@
     "preview": "vite preview",
     "clean": "node scripts/clean.mjs",
     "lint": "tsc --noEmit",
-    "test": "tsx --test src/domain/*.test.ts server/brevo.test.ts",
+    "test": "tsx --test src/domain/*.test.ts src/offlineMission.test.ts src/components/client/AvailabilityCalendar.test.tsx src/components/client/LiveClientExperience.test.tsx src/components/partner/LivePartnerDashboard.test.tsx src/components/agent/LiveAgentWorkspace.test.tsx src/components/admin/LiveAdminDashboard.test.tsx server/brevo.test.ts",
     "api": "tsx server/index.ts",
     "dev:full": "concurrently \"npm run dev\" \"npm run api\"",
-    "test:integration": "tsx --test server/integration.test.ts"
+    "test:integration": "tsx --test server/integration.test.ts server/auth.integration.test.ts",
+    "test:load": "node scripts/smoke-load.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1161.0",
@@ -20,6 +21,7 @@
     "@vitejs/plugin-react": "^6.1.1",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
+    "hls.js": "^1.7.4",
     "idb-keyval": "^6.3.0",
     "lucide-react": "^0.546.0",
     "pdfmake": "^0.3.13",
@@ -39,6 +41,7 @@
     "autoprefixer": "^10.4.21",
     "concurrently": "^10.0.6",
     "esbuild": "^0.28.1",
+    "fake-indexeddb": "^6.2.7",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.21.0",
     "typescript": "^7.0.2"
