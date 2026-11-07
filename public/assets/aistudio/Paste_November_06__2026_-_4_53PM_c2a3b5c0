@@ -1,0 +1,277 @@
+AJOUT CES FONCTIONNALITÉS/AMÉLIORATIONS :
+
+1. Pour les Clients (Locataires & Voyageurs)
+Objectif : Maximiser la confiance, faciliter la découverte et fluidifier le paiement.
+•	Calculateur de budget tout compris (Loyer + Charges estimées):
+o	Problématique Kinoise : Les coupures de courant et d'eau imposent souvent des frais annexes (frais de groupe électrogène/carburant, achat d'eau en citerne, sentinelle).
+o	Fonctionnalité UX : Un simulateur dynamique dans la fiche logement affichant le coût total estimé par mois : Loyer en CDF + forfait carburant groupe estimé + charges communes, pour zéro mauvaise surprise.
+•	Vérificateur automatique de référence Mobile Money (M-Pesa / Airtel Money / Orange Money):
+o	Problématique : Les fraudes aux fausses captures d'écran de SMS de paiement.
+o	Fonctionnalité : Masque de saisie guidé du code de transaction avec validation du format (ex: regex des identifiants Vodacom/Airtel) et bouton de copie rapide du numéro marchand ou du numéro de l'hôte.
+•	Filtre « Résilience Énergie & Eau » en 1 clic sur le Feed:
+o	Des pastilles d'accès rapide sur le feed vidéo : « Eau 24/7 garantie (Cuve/Forage) », « Solaire/Groupe automatique », « Climatisation effective ».
+•	Planification interactive de visite avec repère WhatsApp / Itinéraire kinois:
+o	Bouton générant un message préformaté prêt à l'envoi avec le point de repère exact, la date convenue et le nom de l'agent NZUBU assigné.
+
+2. Pour les Hôtes & Bailleurs
+Objectif : Protéger leur bien, simplifier la gestion locative et garantir la rentabilité.
+•	Générateur de Contrat de Bail Résidentiel conforme Loi 15/025:
+o	Génération automatique en un clic d'un contrat de bail standardisé en français au format PDF téléchargeable, intégrant les mentions légales obligatoires (plafond de caution de 3 mois, état des lieux d'entrée, paiement en CDF).
+•	Gestionnaire d'indisponibilité par calendrier (Bail court séjour):
+o	Calendrier visuel interactif permettant de bloquer des dates en un tap (maintenance, séjour privé du propriétaire) avec synchronisation immédiate sur le feed vidéo pour éviter les demandes caduques.
+•	Reçu d'acompte & Quittance de loyer numérique:
+o	Dès validation de l'acompte de 20 % ou du loyer mensuel, génération d'une quittance numérique signée avec QR code d'authenticité.
+
+3. Pour les Agents Terrain (PWA Inspecteurs)
+Objectif : Faciliter les missions sur site même en cas d'instabilité réseau et garantir l'intégrité.
+•	Périmètre Géofencing de validation (Rayon de 100 m):
+o	Indicateur visuel montrant la distance réelle entre la position GPS de l'agent et le repère déclaré du logement. Si l'agent est à moins de 100 m, validation automatique du point « Présence physique certifiée ».
+•	Mode Enregistrement Vidéo 9:16 intégré avec guidage à l'écran:
+o	Mire visuelle affichée en surimpression rappelant les règles (§11 du dossier) : « Pas de visages tiers », « Filmer le disjoncteur », « Filmer l'ouverture du robinet », « Vue panoramique du salon ».
+•	Signature électronique sur écran de l'état des lieux:
+o	Zone de signature tactile permettant à l'agent et au bailleur présent de signer conjointement le rapport d'inspection directement sur le smartphone avant téléversement.
+
+4. Pour l'Admin & Responsable de Marché (Back-Office)
+Objectif : Maîtrise opérationnelle, zéro litige et supervision proactive.
+•	Radar de Supervision Cartographique de Kinshasa (Map View):
+o	Carte interactive des communes pilotes (Gombe, Ngaliema, Lingwala) localisant :
+	Les logements vérifiés avec badge 90 jours actif.
+	Les missions en cours avec position des agents en intervention.
+	Les zones d'alertes sécurité actives.
+•	Système de renouvellement automatique du Badge 90 jours (J-15):
+o	Déclenchement automatique d'une mission de re-contrôle 15 jours avant expiration du badge avec notification envoyée à l'hôte pour planifier la visite de contrôle.
+•	Registre d'audit et d'export comptable (Commission 8 %):
+o	Suivi des commissions NZUBU dues par bailleur, ventilation des séjours par commune et export CSV/Excel pour la gestion comptable.
+
+ 1. Feed Vidéo Vertical 9:16 (« TikTok de l'Immobilier »)
+Composants : TikTokFeed.tsx,VideoCard.tsx
+•	Améliorations UX & Gestes:
+o	Double-tap pour aimer : Double-taper n'importe où sur la vidéo pour mettre en favori avec animation de cœur kinois éphémère au centre de l'écran.
+o	Barre de progression chapitrée : Diviser la barre de lecture en 4 chapitres cliquables (0s Façade & Accès,10s Salon & Séjour,25s Chambres,40s Compteur & Eau) pour aller directement à ce qui intéresse le client.
+o	Mode « Éco-Données » (Kinshasa 4G) : Bouton permettant de basculer en mode faible consommation de forfait (remplacement de la vidéo par le diaporama photo Ken Burns haute définition compressé WebP).
+•	Améliorations UI:
+o	Pillules de commodités sur la vidéo : Badges translucides discrets en bas à gauche de la vidéo : 💧 Eau 24/7 (Cuve)·⚡ Solaire Hybride·❄️ Climatisation.
+o	Indicateur de son persistant : Afficher une brève icône animée « Toucher pour le son » lors des 3 premières secondes.
+
+2. Catalogue & Recherche Explorer
+Composant : ExploreGrid.tsx
+•	Améliorations UX:
+o	Curseur de budget en Franc Congolais (CDF) : Slider à double curseur (min / max) avec indication du loyer médian par commune pilote (Gombe,Ngaliema,Notez-le).
+o	Comparateur express de 2 ou 3 logements : Sélectionner jusqu'à 3 biens pour comparer sur un tableau synthétique : loyer total, garantie locative, type d'alimentation en eau (REGIDESO/forage) et puissance du groupe électrogène.
+•	Améliorations UI:
+o	Trois intelligents : Sélecteur de tri (« Récemment certifiés NZUBU », « Prix croissant en CDF », « Plus forte autonomie énergétique »).
+o	Statut de badge en temps réel : Pastille verte animée affichant le nombre de jours restants de validité du contrôle physique (« Badge certifié · Reste 78 jours »).
+
+3. Fiche Détaillée du Logement
+Composant : ListingDetailModal.tsx
+•	Améliorations UX:
+o	Simulateur de Budget Mensuel Réel : Tableau interactif calculant : pour supprimer toute déconvenue post-emménagement.
+o	Points de Repère & Accessibilité Kinois : Section indiquant la distance estimée aux artères principales (ex : à 5 min du Boulevard du 30 Juin, à 2 min de l'Avenue de la Justice, arrêt transport en commun à 150 m).
+•	Améliorations UI & Partage:
+o	Bouton « Partager sur WhatsApp » : Génération d'un message pré-rempli avec photo, repère kinois, loyer en CDF et lien direct vers le logement.
+
+4. Réservation Courte Durée & Gestion des Séjours
+Composants : BookingModal.tsx,ClientRequestsView.tsx
+•	Améliorations UX & Sécurité:
+o	Minuteur de verrouillage 30 minutes animé : Affichage d'un compte à rebours circulaire en temps réel qui change de couleur (vert → orange → rouge) pour inciter le client à régler son avance de 20 % avant libération automatique du créneau.
+o	Vérification syntaxique de la référence Mobile Money : Validation du format des SMS de transaction (Vodacom M-Pesa,Airtel Money,Orange Money) avec masque de saisie évitant les erreurs de frappe.
+o	Bouton d'appel USSD direct : Bouton permettant de composer directement le code USSD du transfert (ex:*111# pour M-Pesa) avec le numéro du bailleur pré-copié dans le presse-papier.
+•	Améliorations UI:
+o	Quittance / Reçu de réservation numérique : Document téléchargeable avec QR Code d'authenticité dès que l'hôte confirme la réception de l'avance.
+
+5. Demande de Visite Bail Résidentiel (0 CDF)
+Composant : ViewingModal.tsx
+•	Améliorations UX & Sécurité:
+o	Choix de créneau principal + créneau alternatif : Permet au client de proposer 2 options horaires pour limiter les allers-retours avec le bailleur.
+o	Consignes de sécurité du rendez-vous : Rappel automatique des règles NZUBU (« Ne versez aucun pourboire de visite », « Retrouvez l'agent au repère convenu », « Vérifiez le badge de l'agent »).
+
+6. Espace Bailleur / Hôte
+Composants : PartnerPortal.tsx,AddListingModal.tsx
+•	Améliorations UX:
+o	Calendrier interactif des disponibilités : Calendrier mensuel visuel permettant de bloquer ou débloquer des dates au toucher (pour travaux ou usage personnel du propriétaire).
+o	Assistant de Conformité Loi 15/025 : Alerte bloquante dans le formulaire si le bailleur tente de fixer une garantie locative supérieure à 3 mois.
+o	Générateur automatique de Contrat de Bail Type RDC : Production en 1 clic d'un bail d'habitation standardisé en français au format PDF téléchargeable.
+•	Améliorations UI:
+o	Suivi de rentabilité financière : Graphique simple d'évolution des revenus mensuels perçus en CDF et historique des commissions NZUBU.
+
+7. Terrain de l'agent PWA
+Composant : AgentFieldApp.tsx
+•	Améliorations UX & Terrain:
+o	Géofencing avec calcul de distance métrique : Calcul dynamique de la distance entre l'agent et le repère du logement. Si l'agent est à moins de 100 m, validation automatique du critère « Présence physique ». Si > 100 m, avertissement d'éloignement.
+o	Signature tactile sur écran : Bloc de signature au doigt pour l'agent et le bailleur/mandataire présent sur les lieux avant envoi du rapport.
+o	Exporter un PDF enrichi (exportMissionPdf.ts) : Intégration directe des photos prises sur place avec leur légende dans le PDF généré, avec tampon numérique « Contrôlé NZUBU Kinshasa ».
+o	Reprise automatique en ligne : Détection automatique du retour de la 4G pour synchroniser silencieusement les brouillons stockés en cache local (localStockage).
+
+8. Back-Office Opérations & Supervision
+Composant : BackOfficeView.tsx
+•	Améliorations UX & Gestion de crise:
+o	Radar Cartographique des Inspections (Map View) : Carte interactive de Kinshasa affichant les logements vérifiés, les missions des inspecteurs et les zones sous alerte sécurité.
+o	Alerte d'expiration des Badges (J-15) : Liste dédiée des logements dont le badge 90 jours arrive à échéance avec bouton pour reprogrammer une mission terrain de re-contrôle en 1 clic.
+o	Workflow de levée d'Alerte Sécurité : Formulaire guidé d'investigation avant déblocage d'un logement signalé en PRÉOCCUPATION_DE_SÉCURITÉ (motif, contre-visite effectuée, pièce justificative fournie par le bailleur).
+
+9. Cadre Légal & Réglementaire
+Composant : ComplianceBadgeModal.tsx
+•	Améliorations UX:
+o	Guide pratique téléchargeable : Synthèse PDF d'une page sur « Les droits du locataire et du bailleur selon la Loi n°15/025 » (caution max 3 mois, monnaie CDF obligatoire, préavis légal).
+o	Modèle type d'état des lieux contradictoire : Document téléchargeable pour les visites physiques de prise de possession des clés.
+
+Sur le marché kinois, MaishaPay unifie en une seule passerelle Vodacom M-Pesa, Airtel Money, Orange Money, Afrimoney et les cartes bancaires (Visa/Mastercard), avec gestion native et stricte du Franc Congolais (CDF) conformément aux instructions de la Banque Centrale du Congo (BCC).
+Voici toutes les nouvelles fonctionnalités et améliorations architecturales que nous pouvons concevoir grâce à MaishaPay :
+
+L’intégration d’un agrégateur de paiement local de référence comme LifePay(Maishapay.net) en RDC est une décision stratégique majeure pour NZUBU
+
+1. Tunnel de Paiement Direct par « Push USSD » (Zéro friction UX)
+Au lieu de demander au client d’effectuer un transfert manuel puis de saisir son code SMS de référence :
+•	Push STK instantané sur le smartphone du client : Dès que le client clique sur « Payer l’avance (20 %) avec MaishaPay », une invite USSD automatique s’affiche directement sur l'écran de son téléphone (« Entrez votre code PIN M-Pesa pour autoriser le paiement de 75 000 CDF à NZUBU »).
+•	Détection automatique en temps réel par Webhook (IPN) : L’application écoute la notification de paiement en direct. Dès validation du PIN, le minuteur de 30 minutes se fige et le statut passe automatiquement en « Réservation Confirmée » sans aucune saisie manuelle de référence SMS.
+•	Sélection intuitive de l'opérateur local : Interface soignée affichant les logos officiels des 4 réseaux kinois (M-Pesa, Airtel, Orange, Afrimoney) avec détection automatique de l'opérateur selon le préfixe du numéro (ex: 081/082 pour Vodacom, 097/099 pour Airtel, 084/085 pour Orange).
+2. Système d’Escrow / Séquestre d’Acompte (Garantie Anti-Arnaque NZUBU)
+À Kinshasa, la première crainte des locataires est de verser un acompte à un faux bailleur ou pour un logement insalubre :
+•	Séquestre sécurisé de l'avance : L’avance de 20 % perçue via MaishaPay est conservée sous séquestre par NZUBU jusqu'au jour de l'entrée dans les lieux (Enregistrement).
+•	Déblocage par QR Code ou Code PIN de Check-in : À son arrivée, le voyageur présente son code à l’hôte ou à l'agent NZUBU. Dès validation, MaishaPay déclenche automatiquement le virement des fonds sur le compte Mobile Money de l’hôte.
+•	Garantie « Logement Conforme ou Remboursé » : Si le logement ne correspond pas à la vidéo ou au rapport physique des 9 points, le client est intégralement remboursé en CDF sur son portefeuille MaishaPay en 1 clic.
+
+3. Payout & Split Automatisé des Commissions (Bailleurs)
+Fini la corvée de réclamer la commission aux propriétaires après chaque séjour :
+•	Split de paiement à la source : Sur chaque transaction traitée par MaishaPay, la répartition s’effectue automatiquement :
+o	92 % versés directement sur le portefeuille M-Pesa / Airtel Money du bailleur.
+o	8 % (commission NZUBU) prélevés à la source pour la plateforme.
+•	Portefeuille Numérique Bailleur (Host Wallet):
+o	Espace dédié dans le portail hôte affichant le solde disponible en CDF.
+o	Bouton« Virement express vers mon Mobile Money » avec historique complet de toutes les transactions.
+
+4. Automatisation des Remboursements selon la Politique d'Annulation
+Grâce à l'API de remboursement de MaishaPay :
+•	Annulation > 72 heures avant le séjour : Remboursement automatique à 100 % de l'avance du client sans intervention humaine.
+•	Annulation entre 24h et 72h : Calcul et virement automatique de 50 % de l'acompte au client, et versement des 50 % restants comme dédommagement au bailleur.
+•	Notification SMS/WhatsApp de crédit : Envoi immédiat d'un SMS au voyageur confirmant le retour des fonds sur son numéro M-Pesa/Airtel Money.
+
+5. Compte de Garantie Locative Séquestrée (Bail Résidentiel · Loi 15/025)
+La restitution de la caution (plafonnée légalement à 3 mois de loyer) est le contentieux n°1 en justice de paix à Kinshasa :
+•	Dépôt de garantie bloqué via MaishaPay : Le locataire verse sa garantie locative (max 3 mois en CDF) sur un compte de séquestre dédié géré par la plateforme.
+•	Déblocage bilatéral sécurisé : À la fin du bail, après validation de l'état des lieux de sortie contradictoire par l'agent NZUBU :
+o	Si aucune dégradation : restitution intégrale au locataire sur son Mobile Money.
+o	Si retenue justifiée (impayés d'eau/SNEL ou réparations) : déblocage de la quote-part convenue au bailleur et du solde au locataire.
+
+6. Quittances & Reçus Numériques Certifiés avec QR Code
+Pour répondre aux exigences de la DGRK (Direction Générale des Recettes de Kinshasa) et rassurer les entreprises et expatriés :
+•	Génération automatique de la Quittance Numérique dès la confirmation du paiement MaishaPay.
+•	Mentions légales complètes : Identifiant unique de transaction MaishaPay, référence du rapport physique NZUBU, montant ventilé en CDF, nom de l'agent inspecteur et QR Code scannable vérifiant l'authenticité de la quittance sur les serveurs NZUBU.
+
+7. Certification d’Identité Croisée par la SIM Mobile Money (KYC)
+En RDC, chaque carte SIM est obligatoirement enregistrée auprès de l'ARPTC avec pièce d'identité biométrique :
+•	Vérification d'identité passive : Le nom enregistré sur le compte MaishaPay de l'émetteur est automatiquement comparé avec l'identité déclarée du client ou du bailleur.
+•	Badge « Compte Financier Vérifié » affiché sur le profil des hôtes dont le numéro Mobile Money a reçu avec succès des versements certifiés.
+
+8. Option « Paiement en Espèces via Guichet Partenaire » (Offline Fallback)
+Pour les clients kinois dont le compte Mobile Money est vide :
+•	MaishaPay permet de générer un Code de Référence Unique valable 4 heures.
+•	Le client peut se rendre dans n'importe quel shop partenaire agréé à Kinshasa (Shop Vodacom, Airtel, agence bancaire Rawbank/Equity BCDC) pour déposer les espèces. Dès encaissement, la réservation se valide automatiquement dans l'application.
+
+
+ Voici une sélection de fonctionnalités complémentaires ciblées sur la confiance, la traçabilité juridique et la clarté visuelle (UX/UI), idéales pour l'environnement kinois :
+
+1. Double Signature Tactile Numérique (Agent & Bailleur sur site)
+Pour supprimer toute contestation ultérieure sur les constats physiques d’un logement :
+•	Double zone de signature tactile sur l'écran (Canvas HTML5):
+o	Signature 1 : L'agent assermenté NZUBU (ex : Alain Kambale).
+o	Signature 2 : Le bailleur ou son mandataire présent lors de l'inspection physique.
+•	Incrustation de sécurité sous la signature:
+o	Horodatage exact (Ex. : 06/11/2026 à 14:32:10).
+o	Coordonnées GPS certifiées de l'appareil (ex : -4,303314°, 15,304521°).
+o	Identifiant de pièce d'identité du signataire.
+•	Intégration automatique dans le document PDF:
+o	Les deux signatures sont automatiquement apposées en bas du rapport de mission exportable avec le libellé légal : « Lu, approuvé et certifié sur place à Kinshasa ».
+
+2. Indicateurs de Progression Visuels Dynamiques (Progress Steppers)
+A. Côté Client · Le Stepper de Réservation & Séjour
+Un fil d’Ariane interactif et animé en 5 étapes affiché en tête de l’onglet Mes Demandes:
+1.	Demande envoyée (Prise en compte par l'hôte)
+2.	Acceptée par l'Hôte (Verrou 30 min initié)
+3.	Paiement MaishaPay validé (Avance 20 % sécurisée)
+4.	Check-in & Remise des clés (Présentation du pass d'accès)
+5.	Séjour confirmé & Clôturé
+B. Côté Agent Terrain · Jauge de Complétude de Mission (0 % à 100 %)
+•	Barre circulaire de progression en direct:
+o	S'incrémente au fur et à mesure que l'agent coche les 9 points de contrôle, capture sa position GPS, téléverse les 3 photos et recueille les signatures.
+•	Verrouillage intelligent du bouton d'envoi:
+o	Le bouton« Transmettre au Responsable de Marché » reste grisé tant que la jauge n'atteint pas 100 %, avec une infobulle explicite : « Plus que 2 critères et les signatures pour valider votre rapport ».
+C. Côté Bailleur · Compte à Rebours Visuel du Badge 90 Jours
+•	Une jauge circulaire colorée dans l'espace hôte :
+o	Vert:« Badge actif · Reste 74 jours »
+o	Orange(J-15) :« Re-contrôle nécessaire dans 12 jours » avec bouton « Planifier la visite de renouvellement »en 1 clic.
+o	Rouge:« Badge expiré · Annonce temporairement rétrogradée ».
+
+3. Sceau Officiel & Tampon Numérique de Certification NZUBU
+Pour donner une autorité institutionnelle aux fiches logements et rassurer la diaspora et les entreprises :
+•	Tampon visuel circulaire officiel affiché sur la fiche du logement et sur les documents exportés :
+o	Inscription :NZUBU KINSHASA · CERTIFIÉ CONFORME SUR PLACE · CONTRÔLE N° [ID-MISSION].
+o	Numéro d'assermentation de l'agent inspecteur et date de validité.
+•	QR Code d'authenticité infalsifiable:
+o	Tout client ou agent immobilier scannant le QR code avec son téléphone est redirigé vers une page de vérification confirmant que le rapport a bien été délivré par la direction des opérations NZUBU.
+
+4. État des Lieux Numérique Contradictoire (Check-in / Check-out)
+Le cœur de la prévention des litiges locatifs en RDC :
+•	Inventaire photo contradictoire à l'entrée et à la sortie:
+o	Comparatif côte à côte « Photo à l'entrée vs Photo à la sortie » du salon, de la cuisine, de la plomberie et des compteurs.
+•	Relevé des index de compteurs (Compteur SNEL prépayé & Compteur REGIDESO):
+o	Saisie de l'index chiffré à l'arrivée et au départ du voyageur pour éviter tout litige sur la consommation d'électricité ou d'eau.
+•	Clôture contradictoire:
+o	Signature conjointe de l'état des lieux de sortie déclenchant la libération immédiate de la garantie locative séquestrée via MaishaPay.
+
+5. Indicateur de Trafic & Temps de Trajet Kinois (Traffic Estimator)
+À Kinshasa, la distance en kilomètres ne signifie rien : c'est le temps d'embouteillage qui compte :
+•	Un module synthétique affiché dans les détails du logement :
+o	🚗Vers le Boulevard du 30 Juin (Gombe):~15 min en heures creuses / ~45 min aux heures de pointe.
+o	✈️Vers l'Aéroport International de N'djili:~55 min (itinéraire Boulevard Lumumba ou Poids Lourds).
+o	🏥Hôpital ou Centre Médical le plus proche:CMK à 8 min, Clinique Ngaliema à 12 min.
+o	🛒Commerces & Supermarchés:Shoprite / Kin Marché à 350 m.
+
+6. Bouton d'Assistance d'Urgence « SOS Litige / Panne »
+Pendant le séjour du voyageur ou la durée du bail :
+•	Un bouton flottant discret réservé aux locataires en séjour :
+o	Options rapides : « Panne totale de groupe électrogène non prise en charge par l'hôte »,« Coupure d'eau prolongée sans appoint de citerne »,« Différend sur place ».
+o	Déclenche une notification prioritaire au Responsable de Marché et ouvre un canal WhatsApp direct d'assistance avec un médiateur NZUBU.
+
+7. Capsule Vocale de Visite (Voice Tour Notes)
+Comme les messages vocaux WhatsApp sont le canal de communication n°1 à Kinshasa :
+•	Une capsule audio de 20 à 30 secondes enregistrée par l'agent lors de sa visite physique et intégrée dans la fiche :
+o	« Bonjour, ici Alain Kambale, agent NZUBU. J'ai inspecté cet appartement rue de la Justice. L'immeuble est très calme, la pression d'eau est excellente grâce au surpresseur, et le groupe Perkins prend le relais en moins de 15 secondes... ».
+o	Lecteur audio compact avec onde sonore animée.
+
+Voici une sélection de fonctionnalités à haute valeur ajoutée, conçues sur mesure pour les réalités du marché kinois (connectivité, géolocalisation, conformité légale et paiements locaux) :
+1. Suivi GPS en Temps Réel & Radar Cartographique des Agents (Live Tracking)
+•	Radar Opérations Back-Office (Vue Satellite Kinshasa):
+o	Carte interactive en direct visualisant la position temps réel des agents de terrain sur Gombe, Ngaliema et Lingwala.
+o	Statut de chaque agent (En déplacement, Sur site en inspection, Disponible, Hors ligne), niveau de batterie du smartphone et précision GPS (±3m).
+o	Algorithme de dispatching intelligent : assigne automatiquement une nouvelle mission d'urgence à l'agent le plus proche géographiquement du repère kinois.
+•	Lien de Suivi en Direct pour le Client lors des Visites (« Mon Agent Arrive »):
+o	Le client qui a réservé une visite reçoit un lien de suivi en direct type Uber/livraison montrant l'approche de l'agent NZUBU vers le point de rendez-vous convenu, avec temps estimé d'arrivée (ETA) et bouton d'appel direct.
+
+2. Générateur de Documents PDF Juridiques & Financiers RDC
+•	Contrat de Bail Résidentiel Officiel conforme à la Loi n°15/025:
+o	Génération automatique en un clic d'un bail complet pré-rempli (Bailleur, Locataire, description du bien, loyer strictement en CDF).
+o	Clauses de protection automatique : plafonnement légal de la garantie locative à 3 mois maximum (Art. 18) et interdiction des avances abusives (Art. 22).
+o	Emplacement pour les signatures électroniques scellées et paraphes sur chaque page.
+•	Reçu d’Acompte Sécurisé MaishaPay & Quittance de Loyer en CDF:
+o	Document officiel certifiant le règlement de l'avance des 20% avec QR Code de vérification infalsifiable, référence de transaction Mobile Money et tampon numérique NZUBU.
+•	Fiche d’État des Lieux d’Entrée / Sortie:
+o	Document PDF comparatif horodaté avec relevé des compteurs SNEL/REGIDESO et inventaire des équipements.
+
+3. Outils Pratiques Kinois : Simulateur SNEL vs Solaire & Vérification de Caution
+•	Simulateur de Facture Énergétique & Autonomie (SNEL vs Groupe vs Solaire):
+o	Permet au futur locataire d'estimer ses dépenses réelles mensuelles selon les équipements du bien : coût moyen du carburant mazout/essence pour le groupe électrogène de secours vs kit solaire avec batteries Lithium.
+•	Vérificateur de Conformité de Caution (Loi 15/025):
+o	Alerte immédiate si un bailleur tente de réclamer plus de 3 mois de garantie locative, avec calcul automatique du montant légal maximal en CDF.
+
+4. Mode PWA Hors-Ligne & Compression Vidéo Économie de Données
+•	Synchronisation transparente (Synchronisation en arrière-plan):
+o	L'agent peut enregistrer ses rapports, photos et signatures même en cas de coupure de réseau 4G à Kinshasa ; synchronisation automatique dès le retour de la connexion.
+•	Mode « Data Saver » (Économie de Mégaoctets):
+o	Option permettant aux clients de basculer le flux vidéo vertical en basse résolution optimisée pour économiser le forfait internet mobile.
+
+5. Vérification d'Identité & Badge de Confiance (KYC National avec https://smile.id)
+•	Scan & Vérification des Pièces d'Identité Nationales:
+o	Passeport congolais, Carte d'électeur CENI ou Permis de conduire avec filigrane de sécurité et masquage des informations sensibles.
+o	Attribution d'un badge « Identité Vérifiée NZUBU » sur le profil des bailleurs et agents pour éliminer tout risque d'escroquerie.
+

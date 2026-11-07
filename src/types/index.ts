@@ -263,3 +263,83 @@ export interface SecurityAlert {
   photos?: MissionPhotoEvidence[];
   checklistFailures?: string[];
 }
+
+export interface InventoryReport {
+  id: string;
+  listingId: string;
+  listingTitle: string;
+  commune: string;
+  type: 'ENTRY' | 'EXIT';
+  tenantName: string;
+  tenantPhone: string;
+  landlordName: string;
+  landlordPhone: string;
+  meterIndexKwh: number;
+  waterPressure: 'FAIBLE' | 'BON' | 'TRES_BON';
+  paintState: 'NEUF' | 'BON' | 'A_RAFRAICHIR';
+  acWorkingCount: number;
+  keysCount: number;
+  furnitureInventoryNotes: string;
+  roomsNotes: string;
+  photos: MissionPhotoEvidence[];
+  tenantSignatureUrl?: string;
+  hostSignatureUrl?: string;
+  createdAt: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  listingId: string;
+  listingTitle: string;
+  senderId: string;
+  senderName: string;
+  senderRole: 'CLIENT' | 'HOST' | 'AGENT';
+  text: string;
+  voiceMemoSeconds?: number;
+  photoUrl?: string;
+  timestamp: string;
+  hasBypassWarning?: boolean;
+}
+
+export interface TrustReview {
+  id: string;
+  targetId: string;
+  targetName: string;
+  authorName: string;
+  authorRole: 'CLIENT' | 'HOST';
+  overallScore: number; // 1 to 5
+  reliabilityPercent: number; // e.g. 98%
+  badges: string[];
+  comment: string;
+  date: string;
+}
+
+export interface DiasporaPayment {
+  id: string;
+  bookingId: string;
+  listingTitle: string;
+  beneficiaryName: string;
+  guarantorName: string;
+  guarantorCountry: string;
+  paymentMethod: 'VISA_INTERNATIONAL' | 'MASTERCARD_INTERNATIONAL' | 'MAISHAPAY_DIASPORA';
+  currency: 'USD' | 'EUR' | 'CAD' | 'CDF';
+  amountOriginal: number;
+  amountCdfEquivalent: number;
+  exchangeRateBcc: number;
+  guaranteeCertificateNumber: string;
+  createdAt: string;
+}
+
+export interface InspectionRouteStop {
+  missionId: string;
+  unitTitle: string;
+  commune: string;
+  quartier: string;
+  landmark: string;
+  contactPerson: string;
+  contactPhone: string;
+  timeSlot: 'MORNING' | 'MIDDAY' | 'AFTERNOON';
+  estimatedTrafficDelayMinutes: number;
+  recommendedCorridor: string;
+  isCompleted: boolean;
+}

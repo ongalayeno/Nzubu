@@ -16,11 +16,18 @@ import {
   Droplets, 
   Zap,
   SlidersHorizontal,
-  RotateCcw
+  RotateCcw,
+  ArrowUpDown,
+  Layers,
+  Scale,
+  CheckCircle2,
+  Clock,
+  MessageCircle,
+  Plus
 } from 'lucide-react';
 import { PropertyListing, SponsoredAd } from '../../types';
 import { isAdActive, getRemainingAdTime } from '../../domain/ads';
-import { MessageCircle, Clock, Plus } from 'lucide-react';
+import { ListingComparatorModal } from './ListingComparatorModal';
 
 interface ExploreGridProps {
   listings: PropertyListing[];
@@ -49,8 +56,24 @@ export const ExploreGrid: React.FC<ExploreGridProps> = ({
   const [onlyGenerator, setOnlyGenerator] = useState(false);
   const [selectedType, setSelectedType] = useState('ALL');
   const [maxPrice, setMaxPrice] = useState('');
+  const [sortBy, setSortBy] = useState<'RECENT' | 'PRICE_ASC' | 'PRICE_DESC' | 'ENERGY_RESILIENCE'>('RECENT');
+  const [selectedCompareIds, setSelectedCompareIds] = useState<string[]>([]);
+  const [showComparatorModal, setShowComparatorModal] = useState(false);
 
   const formatCDF = (num: number) => new Intl.NumberFormat('fr-CD').format(num);
+
+  const toggleCompare = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (selectedCompareIds.includes(id)) {
+      setSelectedCompareIds(prev => prev.filter(x => x !== id));
+    } else {
+      if (selectedCompareIds.length >= 3) {
+        alert("Vous pouvez comparer au maximum 3 logements simultanément.");
+        return;
+      }
+      setSelectedCompareIds(prev => [...prev, id]);
+    }
+  };
 
   const filteredListings = listings.filter((item) => {
     if (selectedCommune !== 'ALL' && item.commune.toLowerCase() !== selectedCommune.toLowerCase()) {
@@ -79,6 +102,16 @@ export const ExploreGrid: React.FC<ExploreGridProps> = ({
       if (!matchTitle && !matchCommune && !matchQuartier && !matchLandmark) return false;
     }
     return true;
+  }).sort((a, b) => {
+    if (sortBy === 'PRICE_ASC') return a.pricing.amountCdf - b.pricing.amountCdf;
+    if (sortBy === 'PRICE_DESC') return b.pricing.amountCdf - a.pricing.amountCdf;
+    if (sortBy === 'ENERGY_RESILIENCE') {
+      const score = (l: PropertyListing) => 
+        (l.utilities.electricity.type === 'SOLAR_HYBRID' || l.utilities.electricity.type === 'GENERATOR_BACKUP' ? 2 : 0) + 
+        (l.utilities.water.testedWorking ? 1 : 0);
+      return score(b) - score(a);
+    }
+    return 0; // RECENT / default order
   });
 
   const resetFilters = () => {
@@ -90,7 +123,10 @@ export const ExploreGrid: React.FC<ExploreGridProps> = ({
     setOnlyGenerator(false);
     setSelectedType('ALL');
     setMaxPrice('');
+    setSortBy('RECENT');
   };
+
+  const comparedListings = listings.filter(l => selectedCompareIds.includes(l.id));
 
   return (
     <div className="w-full h-full overflow-y-auto bg-slate-950 text-white p-4 sm:p-6 space-y-6">
@@ -145,6 +181,23 @@ export const ExploreGrid: React.FC<ExploreGridProps> = ({
             <span className="text-slate-400">Prix max. CDF</span>
             <input type="number" min="0" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} placeholder="Sans limite" className="w-24 bg-transparent text-white text-xs outline-none" />
           </label>
+
+          {/* Smart Sorting */}
+          <label className="flex items-center gap-1 rounded-lg bg-slate-900 border border-slate-800 px-2 py-1">
+            <ArrowUpDown className="w-3.5 h-3.5 text-rose-400" />
+            <span className="text-slate-400">Tri</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="bg-transparent text-white text-xs outline-none"
+            >
+              <option value="RECENT" className="bg-slate-900 text-white">Récemment certifiés</option>
+              <option value="PRICE_ASC" className="bg-slate-900 text-white">Prix croissant (CDF)</option>
+              <option value="PRICE_DESC" className="bg-slate-900 text-white">Prix décroissant (CDF)</option>
+              <option value="ENERGY_RESILIENCE" className="bg-slate-900 text-white">Autonomie énergétique max</option>
+            </select>
+          </label>
+
           {/* Communes Pills */}
           <div className="flex items-center gap-1 p-1 bg-slate-900 border border-slate-800 rounded-lg">
             {['ALL', 'Gombe', 'Ngaliema', 'Lingwala'].map((c) => (
@@ -243,7 +296,7 @@ export const ExploreGrid: React.FC<ExploreGridProps> = ({
             <span>Groupe / Solaire</span>
           </button>
 
-          {(selectedCommune !== 'ALL' || selectedMode !== 'ALL' || selectedFurnishing !== 'ALL' || selectedType !== 'ALL' || maxPrice || onlyVerifiedWater || onlyGenerator || searchQuery) && (
+          {(selectedCommune !== 'ALL' || selectedMode !== 'ALL' || selectedFurnishing !== 'ALL' || selectedType !== 'ALL' || maxPrice || onlyVerifiedWater || onlyGenerator || searchQuery || sortBy !== 'RECENT') && (
             <button
               onClick={resetFilters}
               className="px-2.5 py-1.5 text-xs text-rose-400 hover:text-rose-300 flex items-center gap-1 ml-auto"
@@ -252,6 +305,25 @@ export const ExploreGrid: React.FC<ExploreGridProps> = ({
               <span>Réinitialiser</span>
             </button>
           )}
+        </div>
+
+        {/* Kinshasa Reference Median Price Ticker */}
+        <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="flex items-center gap-1.5 text-slate-400 text-[11px]">
+            <Scale className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span className="font-semibold text-slate-300">Repères loyers médians constatés (Loi 15/025) :</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono">
+            <span className="px-2 py-0.5 rounded bg-slate-800/90 text-slate-300">
+              Gombe : ~350 000 CDF/nuit (ou 2 200 000 CDF/mois)
+            </span>
+            <span className="px-2 py-0.5 rounded bg-slate-800/90 text-slate-300">
+              Ngaliema : ~180 000 CDF/nuit
+            </span>
+            <span className="px-2 py-0.5 rounded bg-slate-800/90 text-slate-300">
+              Lingwala : ~120 000 CDF/nuit
+            </span>
+          </div>
         </div>
       </div>
 
@@ -372,7 +444,13 @@ export const ExploreGrid: React.FC<ExploreGridProps> = ({
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
 
                   {/* Top badges */}
-                  <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
+                  <div className="absolute top-2.5 left-2.5 flex flex-wrap items-center gap-1.5 max-w-[70%]">
+                    {listing.id === '1' && (
+                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-rose-500 text-white text-[10px] font-black shadow-md shadow-rose-500/30 animate-pulse">
+                        <Sparkles className="w-3 h-3" />
+                        <span>Super-Boost 48h</span>
+                      </span>
+                    )}
                     <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 backdrop-blur-md text-[10px] font-bold">
                       <ShieldCheck className="w-3 h-3" />
                       <span>Vérifié</span>
@@ -380,20 +458,38 @@ export const ExploreGrid: React.FC<ExploreGridProps> = ({
                     <span className="px-2 py-0.5 rounded-full bg-black/50 text-white backdrop-blur-md text-[10px] font-medium">
                       {listing.rentalMode === 'SHORT_STAY' ? 'Courte durée' : 'Bail résidentiel'}
                     </span>
+                    <span className="px-2 py-0.5 rounded-full bg-slate-900/80 text-emerald-300 backdrop-blur-md text-[9px] font-mono border border-emerald-500/30">
+                      Reste 78j
+                    </span>
                   </div>
 
-                  {/* Favorite button */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onToggleFavorite(listing.id);
-                    }}
-                    className={`absolute top-2.5 right-2.5 w-8 h-8 rounded-full flex items-center justify-center backdrop-blur-md transition-colors ${
-                      listing.isFavorite ? 'bg-rose-500 text-white' : 'bg-black/50 text-white hover:bg-black/80'
-                    }`}
-                  >
-                    <Heart className={`w-4 h-4 ${listing.isFavorite ? 'fill-white' : ''}`} />
-                  </button>
+                  {/* Top-right actions: Compare toggle & Favorite button */}
+                  <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5">
+                    <button
+                      onClick={(e) => toggleCompare(listing.id, e)}
+                      title={selectedCompareIds.includes(listing.id) ? "Retirer de la comparaison" : "Ajouter au comparateur"}
+                      className={`px-2 py-1 rounded-full text-[10px] font-bold backdrop-blur-md transition-all flex items-center gap-1 ${
+                        selectedCompareIds.includes(listing.id)
+                          ? 'bg-amber-500 text-slate-950 shadow-md ring-2 ring-amber-400'
+                          : 'bg-black/60 text-slate-300 hover:text-white hover:bg-black/80'
+                      }`}
+                    >
+                      <Layers className="w-3 h-3" />
+                      <span>{selectedCompareIds.includes(listing.id) ? 'Comparé' : 'Comparer'}</span>
+                    </button>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleFavorite(listing.id);
+                      }}
+                      className={`w-8 h-8 rounded-full flex items-center justify-center backdrop-blur-md transition-colors ${
+                        listing.isFavorite ? 'bg-rose-500 text-white' : 'bg-black/50 text-white hover:bg-black/80'
+                      }`}
+                    >
+                      <Heart className={`w-4 h-4 ${listing.isFavorite ? 'fill-white' : ''}`} />
+                    </button>
+                  </div>
 
                   {/* Bottom price over image */}
                   <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-baseline justify-between text-white">
@@ -474,6 +570,54 @@ export const ExploreGrid: React.FC<ExploreGridProps> = ({
           </div>
         )}
       </div>
+
+      {/* Floating Sticky Comparison Bar */}
+      {selectedCompareIds.length > 0 && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-full max-w-xl px-4 animate-fade-in">
+          <div className="p-3 sm:p-4 rounded-2xl bg-slate-900/95 border border-amber-500/50 backdrop-blur-md shadow-2xl flex items-center justify-between gap-3 text-white">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 flex items-center justify-center shrink-0">
+                <Layers className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="text-xs font-bold text-white block">
+                  Comparateur express ({selectedCompareIds.length} / 3)
+                </span>
+                <span className="text-[10px] text-slate-400">
+                  Comparez loyer CDF, caution légale 3 mois, eau et groupe
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSelectedCompareIds([])}
+                className="px-2.5 py-1.5 text-xs text-slate-400 hover:text-white"
+              >
+                Vider
+              </button>
+              <button
+                onClick={() => setShowComparatorModal(true)}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-600 hover:to-rose-600 active:scale-95 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-amber-500/20"
+              >
+                <Scale className="w-3.5 h-3.5" />
+                <span>Comparer ({selectedCompareIds.length})</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Express Comparison Modal */}
+      {showComparatorModal && (
+        <ListingComparatorModal
+          listings={comparedListings}
+          onClose={() => setShowComparatorModal(false)}
+          onOpenBooking={onOpenBooking}
+          onOpenViewing={onOpenViewing}
+          onRemoveFromCompare={(id) => setSelectedCompareIds(prev => prev.filter(x => x !== id))}
+        />
+      )}
     </div>
   );
 };

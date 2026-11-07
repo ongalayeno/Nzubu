@@ -44,12 +44,17 @@ import {
   Upload,
   FileDown,
   PenTool,
-  Lock
+  Lock,
+  QrCode,
+  Scan
 } from 'lucide-react';
 import { FieldMission, GpsCoordinates, MissionPhotoEvidence, AgentSignature } from '../../types';
 import { exportMissionPdf } from '../../utils/exportMissionPdf';
 import { AgentSignaturePad } from './AgentSignaturePad';
 import { ProgressStepper, StepItem } from '../common/ProgressStepper';
+import { MotoRouteOptimizerModal } from './MotoRouteOptimizerModal';
+import { PropertyInventoryModal } from '../partner/PropertyInventoryModal';
+import { SnelQrScannerModal } from './SnelQrScannerModal';
 
 interface AgentFieldAppProps {
   missions: FieldMission[];
@@ -112,6 +117,39 @@ export const AgentFieldApp: React.FC<AgentFieldAppProps> = ({
   const [agentSignature, setAgentSignature] = useState<AgentSignature | undefined>(
     selectedMission?.agentSignature
   );
+  const [showMotoOptimizer, setShowMotoOptimizer] = useState(false);
+  const [showInventoryModal, setShowInventoryModal] = useState(false);
+  const [showSnelQrScanner, setShowSnelQrScanner] = useState(false);
+
+  const handleQrScanSuccess = (scanData: {
+    meterNumber: string;
+    indexKwh: number;
+    voltage: string;
+    photoEvidence: MissionPhotoEvidence;
+    notesAppendix: string;
+  }) => {
+    // 1. Auto-check corresponding points in checklist
+    setChecklist((prev) => ({
+      ...prev,
+      electricityTested: true,
+      safetyEgressChecked: true,
+      physicalPresenceConfirmed: true,
+    }));
+
+    // 2. Pre-fill / add photo evidence into photos list
+    setPhotos((prev) => {
+      const filtered = prev.filter(p => !p.caption.includes('SNEL'));
+      if (filtered.length >= 3) {
+        return [scanData.photoEvidence, ...filtered.slice(0, 2)];
+      }
+      return [scanData.photoEvidence, ...filtered];
+    });
+
+    // 3. Append technical notes
+    setNotes((prev) => prev ? `${prev}\n\n${scanData.notesAppendix}` : scanData.notesAppendix);
+
+    setHasUnsyncedDraft(true);
+  };
 
   // Local checklist state
   const [checklist, setChecklist] = useState({
@@ -129,6 +167,34 @@ export const AgentFieldApp: React.FC<AgentFieldAppProps> = ({
   const [decisionOutcome, setDecisionOutcome] = useState<'PASS' | 'PASS_WITH_DISCLOSURES' | 'NEEDS_CORRECTION' | 'SAFETY_CONCERN'>('PASS');
   const [notes, setNotes] = useState(selectedMission?.notes || '');
   const [submittedFeedback, setSubmittedFeedback] = useState(false);
+  const [showVideoGuideModal, setShowVideoGuideModal] = useState(false);
+
+  // Helper for geofencing distance calculation (Haversine formula)
+  const calculateDistanceMeters = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371e3; // Earth radius in meters
+    const phi1 = lat1 * Math.PI / 180;
+    const phi2 = lat2 * Math.PI / 180;
+    const deltaPhi = (lat2 - lat1) * Math.PI / 180;
+    const deltaLambda = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+              Math.cos(phi1) * Math.cos(phi2) *
+              Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return Math.round(R * c);
+  };
+
+  const getTargetCommuneCenter = (commune: string) => {
+    const c = commune.toLowerCase();
+    if (c.includes('gombe')) return { lat: -4.303314, lon: 15.304521 };
+    if (c.includes('ngaliema')) return { lat: -4.341120, lon: 15.253640 };
+    return { lat: -4.321450, lon: 15.297410 };
+  };
+
+  const targetCoords = selectedMission ? getTargetCommuneCenter(selectedMission.commune) : null;
+  const geofenceDistance = (gpsCoordinates && targetCoords)
+    ? calculateDistanceMeters(gpsCoordinates.latitude, gpsCoordinates.longitude, targetCoords.lat, targetCoords.lon)
+    : null;
+  const isWithinGeofence = geofenceDistance !== null && geofenceDistance <= 100;
 
   // Archives filter & sort states
   const [archiveSearch, setArchiveSearch] = useState('');
@@ -430,28 +496,48 @@ export const AgentFieldApp: React.FC<AgentFieldAppProps> = ({
             </p>
           </div>
 
-          {/* Offline simulator toggle button */}
-          <button
-            onClick={() => setIsOfflineSimulated(!isOfflineSimulated)}
-            className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-              isOfflineSimulated
-                ? 'bg-amber-500/20 border-amber-500 text-amber-300'
-                : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
-            }`}
-            title="Simule une perte de réseau mobile à Kinshasa"
-          >
-            {isOfflineSimulated ? (
-              <>
-                <WifiOff className="w-3.5 h-3.5" />
-                <span>Hors-ligne simulé</span>
-              </>
-            ) : (
-              <>
-                <Wifi className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Réseau 4G actif</span>
-              </>
-            )}
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setShowMotoOptimizer(true)}
+              className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center gap-1.5 shadow-md shadow-amber-500/20 transition-all"
+              title="Optimiser l'ordre de passage moto pour éviter les embouteillages de Kinshasa"
+            >
+              <Navigation className="w-3.5 h-3.5 text-slate-950" />
+              <span>Tournée Moto (Anti-Bouchons)</span>
+            </button>
+
+            <button
+              onClick={() => setShowInventoryModal(true)}
+              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 text-xs font-semibold flex items-center gap-1.5 transition-all"
+              title="Dresser un PV officiel d'État des Lieux Contradictoire (Loi 15/025)"
+            >
+              <ClipboardCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span>État des Lieux (Loi 15/025)</span>
+            </button>
+
+            {/* Offline simulator toggle button */}
+            <button
+              onClick={() => setIsOfflineSimulated(!isOfflineSimulated)}
+              className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+                isOfflineSimulated
+                  ? 'bg-amber-500/20 border-amber-500 text-amber-300'
+                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+              }`}
+              title="Simule une perte de réseau mobile à Kinshasa"
+            >
+              {isOfflineSimulated ? (
+                <>
+                  <WifiOff className="w-3.5 h-3.5" />
+                  <span>Hors-ligne simulé</span>
+                </>
+              ) : (
+                <>
+                  <Wifi className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Réseau 4G actif</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Tab Switcher: Missions à Traiter vs Archives */}
@@ -572,13 +658,24 @@ export const AgentFieldApp: React.FC<AgentFieldAppProps> = ({
                       <p><strong>Contact sur place :</strong> {selectedMission.contactPerson} ({selectedMission.contactPhone})</p>
                     </div>
                   </div>
-                  <a
-                    href={`tel:${selectedMission.contactPhone}`}
-                    className="py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 shrink-0"
-                  >
-                    <Phone className="w-3.5 h-3.5" />
-                    <span>Appeler le contact</span>
-                  </a>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowVideoGuideModal(true)}
+                      className="py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 border border-sky-500/30 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                    >
+                      <Video className="w-3.5 h-3.5 text-sky-400" />
+                      <span>Guide Cadrage 9:16</span>
+                    </button>
+
+                    <a
+                      href={`tel:${selectedMission.contactPhone}`}
+                      className="py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 shrink-0"
+                    >
+                      <Phone className="w-3.5 h-3.5" />
+                      <span>Appeler le contact</span>
+                    </a>
+                  </div>
                 </div>
 
                 {/* Progress Stepper for Mission Workflow */}
@@ -641,34 +738,57 @@ export const AgentFieldApp: React.FC<AgentFieldAppProps> = ({
 
                   {/* Display captured coordinates */}
                   {gpsCoordinates ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-700/60 text-xs">
-                      <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-700/50">
-                        <span className="text-[10px] text-slate-400 block">Latitude</span>
-                        <span className="font-mono font-bold text-emerald-400 text-xs">
-                          {gpsCoordinates.latitude}°
-                        </span>
+                    <div className="space-y-2 pt-2 border-t border-slate-700/60">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                        <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-700/50">
+                          <span className="text-[10px] text-slate-400 block">Latitude</span>
+                          <span className="font-mono font-bold text-emerald-400 text-xs">
+                            {gpsCoordinates.latitude}°
+                          </span>
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-700/50">
+                          <span className="text-[10px] text-slate-400 block">Longitude</span>
+                          <span className="font-mono font-bold text-emerald-400 text-xs">
+                            {gpsCoordinates.longitude}°
+                          </span>
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-700/50">
+                          <span className="text-[10px] text-slate-400 block">Précision estimée</span>
+                          <span className="font-mono text-white text-xs">
+                            ± {gpsCoordinates.accuracyMeters || 4} mètres
+                          </span>
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-700/50">
+                          <span className="text-[10px] text-slate-400 block">Heure de capture</span>
+                          <span className="font-mono text-white text-xs">
+                            {gpsCoordinates.capturedAt || '14:22:10'}
+                          </span>
+                        </div>
                       </div>
 
-                      <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-700/50">
-                        <span className="text-[10px] text-slate-400 block">Longitude</span>
-                        <span className="font-mono font-bold text-emerald-400 text-xs">
-                          {gpsCoordinates.longitude}°
-                        </span>
-                      </div>
-
-                      <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-700/50">
-                        <span className="text-[10px] text-slate-400 block">Précision estimée</span>
-                        <span className="font-mono text-white text-xs">
-                          ± {gpsCoordinates.accuracyMeters || 4} mètres
-                        </span>
-                      </div>
-
-                      <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-700/50">
-                        <span className="text-[10px] text-slate-400 block">Heure de capture</span>
-                        <span className="font-mono text-white text-xs">
-                          {gpsCoordinates.capturedAt || '14:22:10'}
-                        </span>
-                      </div>
+                      {/* 100m Geofencing Physical Presence Badge */}
+                      {geofenceDistance !== null && (
+                        <div className={`p-2.5 rounded-xl border flex items-center justify-between text-xs ${
+                          isWithinGeofence
+                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                            : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                        }`}>
+                          <div className="flex items-center gap-2">
+                            <Navigation className="w-4 h-4 shrink-0" />
+                            <span>
+                              {isWithinGeofence
+                                ? `Périmètre certifié : Vous êtes à ${geofenceDistance}m du repère terrain (Seuil < 100m validé).`
+                                : `Écart GPS détecté : Vous êtes à ${geofenceDistance}m du repère (${selectedMission.landmark}). Rapprochez-vous.`}
+                            </span>
+                          </div>
+                          <span className="font-mono font-bold text-[11px] px-2 py-0.5 rounded bg-slate-900 shrink-0">
+                            {geofenceDistance}m / 100m max
+                          </span>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 flex items-center gap-2">
@@ -771,17 +891,32 @@ export const AgentFieldApp: React.FC<AgentFieldAppProps> = ({
                       {/* 5 */}
                       <div 
                         onClick={() => toggleCheck('electricityTested')}
-                        className={`p-3 rounded-xl border flex items-start gap-3 cursor-pointer transition-colors ${
+                        className={`p-3 rounded-xl border flex items-start justify-between gap-3 cursor-pointer transition-colors ${
                           checklist.electricityTested ? 'bg-emerald-500/10 border-emerald-500/30 text-white' : 'bg-slate-800/40 border-slate-800 text-slate-300'
                         }`}
                       >
-                        <div className="mt-0.5 text-emerald-400">
-                          {checklist.electricityTested ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4 text-slate-500" />}
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5 text-emerald-400">
+                            {checklist.electricityTested ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4 text-slate-500" />}
+                          </div>
+                          <div>
+                            <strong className="block text-white">5. Électricité & Secours (Groupe / Solaire)</strong>
+                            <span>Démarrage du groupe électrogène ou inverseur testé, prises sous tension.</span>
+                          </div>
                         </div>
-                        <div>
-                          <strong className="block text-white">5. Électricité & Secours (Groupe / Solaire)</strong>
-                          <span>Démarrage du groupe électrogène ou inverseur testé, prises sous tension.</span>
-                        </div>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowSnelQrScanner(true);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[10px] font-bold flex items-center gap-1 transition-colors shrink-0"
+                          title="Scanner le QR code apposé sur le compteur SNEL"
+                        >
+                          <QrCode className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Scanner QR SNEL</span>
+                        </button>
                       </div>
 
                       {/* 6 */}
@@ -909,6 +1044,16 @@ export const AgentFieldApp: React.FC<AgentFieldAppProps> = ({
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setShowSnelQrScanner(true)}
+                            className="py-2 px-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md shadow-amber-500/20 transition-all"
+                            title="Scanner le QR code du compteur SNEL ou disjoncteur"
+                          >
+                            <QrCode className="w-3.5 h-3.5 text-slate-950" />
+                            <span>Scanner QR Compteur SNEL</span>
+                          </button>
+
                           <button
                             type="button"
                             onClick={() => fileInputRef.current?.click()}
@@ -1633,6 +1778,170 @@ export const AgentFieldApp: React.FC<AgentFieldAppProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* MODAL: 9:16 Video Recording Guidelines Overlay */}
+      {showVideoGuideModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in"
+          onClick={() => setShowVideoGuideModal(false)}
+        >
+          <div
+            className="max-w-md w-full bg-slate-900 border border-sky-500/40 rounded-2xl p-5 text-white shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Video className="w-5 h-5 text-sky-400" />
+                <h3 className="text-sm font-bold text-white">
+                  Guide de Cadrage Vidéo Vertical (9:16)
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowVideoGuideModal(false)}
+                className="w-7 h-7 rounded-full bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Viewfinder Graphic Wireframe */}
+            <div className="relative aspect-[9/16] max-h-72 mx-auto rounded-2xl bg-black border-2 border-dashed border-sky-400/60 p-3 flex flex-col justify-between overflow-hidden">
+              <div className="flex items-center justify-between text-[10px] text-sky-400 font-mono">
+                <span>REC ● 00:45</span>
+                <span>9:16 4K 30FPS</span>
+              </div>
+
+              {/* Viewfinder crosshairs */}
+              <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                <div className="w-16 h-16 border border-sky-400/30 rounded-lg" />
+              </div>
+
+              <div className="space-y-1 z-10 bg-black/70 p-2 rounded-xl backdrop-blur-sm text-[10px]">
+                <span className="font-bold text-white block">Séquence 4 Chapitres obligatoire :</span>
+                <div className="text-slate-300 space-y-0.5">
+                  <div>• <strong>00s :</strong> Façade & barrière d'accès</div>
+                  <div>• <strong>10s :</strong> Salon & hauteur sous plafond</div>
+                  <div>• <strong>22s :</strong> Chambres & sanitaires</div>
+                  <div>• <strong>34s :</strong> Compteur SNEL & Débit robinet</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Legal & Safety reminders */}
+            <div className="space-y-2 text-xs">
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-200 text-[11px] space-y-1">
+                <strong className="block text-amber-300">Règle d'or de confidentialité (RDC) :</strong>
+                <p>
+                  Ne filmez aucun visage de passant, voisin ou enfant sans autorisation expresse. Filmez uniquement les volumes, installations techniques et mobiliers réels.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowVideoGuideModal(false)}
+              className="w-full py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-md transition-colors"
+            >
+              J'ai compris, commencer la captation
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Moto Route Optimizer Modal */}
+      {showMotoOptimizer && (
+        <MotoRouteOptimizerModal
+          missions={missions}
+          onClose={() => setShowMotoOptimizer(false)}
+          onSelectMission={(mId) => {
+            const found = missions.find(m => m.id === mId);
+            if (found) handleSelectMission(found);
+            setShowMotoOptimizer(false);
+          }}
+        />
+      )}
+
+      {/* Property Inventory Modal */}
+      {showInventoryModal && selectedMission && (
+        <PropertyInventoryModal
+          listing={{
+            id: selectedMission.listingId || selectedMission.id,
+            title: selectedMission.unitTitle,
+            description: selectedMission.notes || 'Inspection contradictoire certifiée',
+            rentalMode: 'SHORT_STAY',
+            furnishingStatus: 'FURNISHED',
+            unitType: 'APARTMENT',
+            commune: selectedMission.commune,
+            quartier: selectedMission.quartier,
+            landmark: selectedMission.landmark,
+            pricing: {
+              amountCdf: 250000,
+              priceUnit: 'PER_NIGHT',
+              serviceChargesIncluded: true
+            },
+            bedroomsCount: 2,
+            bathroomsCount: 1,
+            maxOccupants: 3,
+            utilities: {
+              water: { type: 'REGIDESO', testedWorking: true, notes: 'Pression testée' },
+              electricity: { type: 'SNEL_GRID', testedWorking: true, notes: 'Compteur vérifié' },
+              ac: true,
+              wifi: true,
+              parking: true,
+              securityGuard: true
+            },
+            media: {
+              videoUrl: '',
+              videoThumbnail: '',
+              videoDurationSeconds: 45,
+              photos: []
+            },
+            verification: {
+              verifiedAt: '2026-11-06',
+              verifiedUntil: '2027-02-06',
+              inspectorId: 'NZUBU-AG-02',
+              inspectorName: 'Alain Kambale',
+              reportReference: 'NZUBU-REP-2026',
+              checksCompleted: {
+                identityAndRights: true,
+                physicalExistence: true,
+                utilitiesWaterElectricity: true,
+                interiorMatch: true,
+                mediaIntegrity: true,
+                pricingInCdf: true
+              },
+              disclaimers: []
+            },
+            partner: {
+              id: 'p1',
+              name: selectedMission.contactPerson,
+              type: 'OWNER',
+              verified: true,
+              phoneMasked: selectedMission.contactPhone,
+              rating: 4.9,
+              responseRatePercent: 95
+            },
+            availabilityStatus: 'AVAILABLE',
+            cancellationPolicy: {
+              id: 'c1',
+              summary: 'Standard 72h',
+              rule72h: 'Remboursement intégral',
+              rule24h: '50% retenu'
+            }
+          }}
+          type="ENTRY"
+          onClose={() => setShowInventoryModal(false)}
+        />
+      )}
+
+      {/* SNEL / Breaker QR Code Scanner Modal */}
+      {showSnelQrScanner && (
+        <SnelQrScannerModal
+          isOpen={showSnelQrScanner}
+          onClose={() => setShowSnelQrScanner(false)}
+          onScanSuccess={handleQrScanSuccess}
+        />
       )}
     </div>
   );

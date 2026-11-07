@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { useState } from 'react';
 import { 
   Building2, 
@@ -17,10 +12,23 @@ import {
   Phone,
   UserCheck,
   TrendingUp,
-  CreditCard
+  CreditCard,
+  FileDown,
+  Lock,
+  Unlock,
+  Layers,
+  Calculator,
+  ClipboardCheck,
+  MessageSquare,
+  Flame,
+  Award
 } from 'lucide-react';
 import { PropertyListing, BookingRequest } from '../../types';
 import { AddListingModal } from './AddListingModal';
+import { exportLeasePdf } from '../../utils/exportLeasePdf';
+import { RentalYieldCalculatorModal } from './RentalYieldCalculatorModal';
+import { PropertyInventoryModal } from './PropertyInventoryModal';
+import { SecureChatModal } from '../common/SecureChatModal';
 
 interface PartnerPortalProps {
   listings: PropertyListing[];
@@ -42,7 +50,48 @@ export const PartnerPortal: React.FC<PartnerPortalProps> = ({
   onOpenCreateAd,
 }) => {
   const [showAddModal, setShowAddModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<'LISTINGS' | 'BOOKINGS' | 'INVOICES'>('BOOKINGS');
+  const [activeTab, setActiveTab] = useState<'LISTINGS' | 'BOOKINGS' | 'CALENDAR' | 'INVOICES'>('BOOKINGS');
+  const [selectedCalendarListingId, setSelectedCalendarListingId] = useState<string>(listings[0]?.id || '');
+  const [blockedDates, setBlockedDates] = useState<Record<string, string[]>>({
+    [listings[0]?.id || '1']: ['2026-11-12', '2026-11-13', '2026-11-20'],
+  });
+  const [isExportingLeaseId, setIsExportingLeaseId] = useState<string | null>(null);
+  const [showYieldModal, setShowYieldModal] = useState<boolean>(false);
+  const [inventoryListing, setInventoryListing] = useState<PropertyListing | null>(null);
+  const [chatListing, setChatListing] = useState<PropertyListing | null>(null);
+  const [boostedListings, setBoostedListings] = useState<Record<string, boolean>>({
+    '1': true
+  });
+
+  const toggleBoost = (listingId: string) => {
+    setBoostedListings(prev => ({
+      ...prev,
+      [listingId]: !prev[listingId]
+    }));
+  };
+
+  const toggleDateBlock = (listingId: string, dateStr: string) => {
+    setBlockedDates(prev => {
+      const current = prev[listingId] || [];
+      if (current.includes(dateStr)) {
+        return { ...prev, [listingId]: current.filter(d => d !== dateStr) };
+      } else {
+        return { ...prev, [listingId]: [...current, dateStr] };
+      }
+    });
+  };
+
+  const handleExportLease = async (listing: PropertyListing) => {
+    setIsExportingLeaseId(listing.id);
+    try {
+      await exportLeasePdf(listing);
+    } catch (err) {
+      console.error(err);
+      alert("Erreur lors de la génération du contrat de bail.");
+    } finally {
+      setIsExportingLeaseId(null);
+    }
+  };
 
   const formatCDF = (num: number) => new Intl.NumberFormat('fr-CD').format(num);
 
@@ -76,7 +125,27 @@ export const PartnerPortal: React.FC<PartnerPortalProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              onClick={() => setShowYieldModal(true)}
+              className="py-2.5 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs flex items-center gap-1.5 border border-amber-500/30 transition-all"
+              title="Simuler vos gains : Séjour court vs Bail 3 ans"
+            >
+              <Calculator className="w-4 h-4 text-amber-400" />
+              <span>Simulateur Rendement</span>
+            </button>
+
+            {listings[0] && (
+              <button
+                onClick={() => setInventoryListing(listings[0])}
+                className="py-2.5 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-300 font-bold text-xs flex items-center gap-1.5 border border-emerald-500/30 transition-all"
+                title="Créer un PV d'État des Lieux Entrée/Sortie (Loi 15/025)"
+              >
+                <ClipboardCheck className="w-4 h-4 text-emerald-400" />
+                <span>État des Lieux Numérique</span>
+              </button>
+            )}
+
             {onOpenCreateAd && (
               <button
                 onClick={onOpenCreateAd}
@@ -163,6 +232,18 @@ export const PartnerPortal: React.FC<PartnerPortalProps> = ({
           >
             <Building2 className="w-3.5 h-3.5" />
             <span>Mes Logements ({listings.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('CALENDAR')}
+            className={`px-3.5 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1.5 ${
+              activeTab === 'CALENDAR'
+                ? 'bg-amber-500 text-slate-950 shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>Planning & Blocages</span>
           </button>
 
           <button
@@ -273,8 +354,32 @@ export const PartnerPortal: React.FC<PartnerPortalProps> = ({
                         <span>Téléphone client : <strong className="text-white font-mono">{booking.guestPhone}</strong></span>
                       </div>
 
-                      {booking.status === 'REQUESTED' && (
-                        <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const l = listings.find(item => item.id === booking.listingId) || listings[0];
+                            if (l) setChatListing(l);
+                          }}
+                          className="py-1.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 border border-slate-700 transition-colors"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Chat Sécurisé</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const l = listings.find(item => item.id === booking.listingId) || listings[0];
+                            if (l) setInventoryListing(l);
+                          }}
+                          className="py-1.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-300 text-xs font-semibold flex items-center gap-1.5 border border-emerald-500/30 transition-colors"
+                        >
+                          <ClipboardCheck className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>État des Lieux (Loi 15/025)</span>
+                        </button>
+
+                        {booking.status === 'REQUESTED' && (
                           <button
                             onClick={() => onAcceptBooking(booking.id)}
                             className="py-2 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-md transition-all flex items-center gap-1.5"
@@ -282,32 +387,32 @@ export const PartnerPortal: React.FC<PartnerPortalProps> = ({
                             <CheckCircle2 className="w-4 h-4" />
                             <span>Accepter (bloquer les dates 30 min)</span>
                           </button>
-                        </div>
-                      )}
+                        )}
 
-                      {(booking.status === 'HOST_ACCEPTED_TERMS' || booking.status === 'PAYMENT_DECLARED') && (
-                        <div className="flex items-center gap-2">
-                          {booking.paymentReference && (
-                            <span className="text-xs text-sky-300 font-mono">
-                              Réf. reçue : {booking.paymentReference}
-                            </span>
-                          )}
-                          <button
-                            onClick={() => onConfirmHostPayment(booking.id)}
-                            className="py-2 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-md transition-all flex items-center gap-1.5"
-                          >
+                        {(booking.status === 'HOST_ACCEPTED_TERMS' || booking.status === 'PAYMENT_DECLARED') && (
+                          <div className="flex items-center gap-2">
+                            {booking.paymentReference && (
+                              <span className="text-xs text-sky-300 font-mono">
+                                Réf. reçue : {booking.paymentReference}
+                              </span>
+                            )}
+                            <button
+                              onClick={() => onConfirmHostPayment(booking.id)}
+                              className="py-2 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-md transition-all flex items-center gap-1.5"
+                            >
+                              <CheckCircle2 className="w-4 h-4" />
+                              <span>Confirmer la réception de l'avance (20%)</span>
+                            </button>
+                          </div>
+                        )}
+
+                        {booking.status === 'CONFIRMED' && (
+                          <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
                             <CheckCircle2 className="w-4 h-4" />
-                            <span>Confirmer la réception de l'avance (20%)</span>
-                          </button>
-                        </div>
-                      )}
-
-                      {booking.status === 'CONFIRMED' && (
-                        <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
-                          <CheckCircle2 className="w-4 h-4" />
-                          <span>Dossier complet. Commission NZUBU 10% ({formatCDF(Math.round(booking.totalPriceCdf * 0.1))} CDF) calculée après le séjour.</span>
-                        </span>
-                      )}
+                            <span>Dossier complet. Commission NZUBU 10% ({formatCDF(Math.round(booking.totalPriceCdf * 0.1))} CDF) calculée après le séjour.</span>
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -358,7 +463,52 @@ export const PartnerPortal: React.FC<PartnerPortalProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Super-Boost 48h Toggle Button */}
+                    <button
+                      type="button"
+                      onClick={() => toggleBoost(item.id)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                        boostedListings[item.id]
+                          ? 'bg-gradient-to-r from-amber-500 to-rose-500 text-white shadow-md shadow-rose-500/20'
+                          : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'
+                      }`}
+                      title="Remonte l'annonce en top priorité du TikTok Feed avec badge Coup de Cœur"
+                    >
+                      <Flame className="w-3.5 h-3.5" />
+                      <span>{boostedListings[item.id] ? 'Super-Boost 48h Actif' : 'Booster 48h'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setInventoryListing(item)}
+                      className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 text-xs font-semibold flex items-center gap-1 transition-colors"
+                      title="Créer ou vérifier l'état des lieux contradictoire"
+                    >
+                      <ClipboardCheck className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>État des Lieux</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowYieldModal(true)}
+                      className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 text-xs font-semibold flex items-center gap-1 transition-colors"
+                      title="Calculer le rendement prévisionnel"
+                    >
+                      <Calculator className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Rendement</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleExportLease(item)}
+                      disabled={isExportingLeaseId === item.id}
+                      className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 text-xs font-semibold flex items-center gap-1 transition-colors disabled:opacity-60"
+                    >
+                      <FileDown className="w-3.5 h-3.5 text-amber-400" />
+                      <span>{isExportingLeaseId === item.id ? 'Génération...' : 'Bail Type'}</span>
+                    </button>
+
                     <button
                       onClick={() => onToggleAvailability(item.id)}
                       disabled={item.publicationStatus !== undefined && item.publicationStatus !== 'PUBLISHED'}
@@ -373,6 +523,125 @@ export const PartnerPortal: React.FC<PartnerPortalProps> = ({
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Tab: Interactive Availability & Blocking Calendar */}
+        {activeTab === 'CALENDAR' && (
+          <div className="space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-amber-400" />
+                  <span>Planning des disponibilités & Blocage de dates</span>
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Cliquez sur un jour du calendrier pour bloquer ou libérer la réservation de votre logement.
+                </p>
+              </div>
+
+              {/* Listing selector dropdown */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-400 font-medium">Logement :</span>
+                <select
+                  value={selectedCalendarListingId}
+                  onChange={(e) => setSelectedCalendarListingId(e.target.value)}
+                  className="bg-slate-900 border border-slate-700 text-xs text-white rounded-xl px-3 py-1.5 focus:outline-none focus:border-amber-500"
+                >
+                  {listings.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.title} ({l.commune})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Calendar Grid Container */}
+            <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4 shadow-xl">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-black text-white">Novembre 2026</span>
+                  <span className="text-[11px] text-amber-400 font-mono">Kinshasa (GMT+1)</span>
+                </div>
+
+                <div className="flex items-center gap-3 text-[11px]">
+                  <span className="flex items-center gap-1.5 text-slate-400">
+                    <span className="w-3 h-3 rounded bg-emerald-500/20 border border-emerald-500/50" />
+                    <span>Disponible</span>
+                  </span>
+                  <span className="flex items-center gap-1.5 text-slate-400">
+                    <span className="w-3 h-3 rounded bg-rose-500/30 border border-rose-500/60" />
+                    <span>Séjour Confirmé</span>
+                  </span>
+                  <span className="flex items-center gap-1.5 text-slate-400">
+                    <span className="w-3 h-3 rounded bg-slate-800 border border-slate-600 line-through text-slate-500" />
+                    <span>Bloqué par l'hôte</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Days of week header */}
+              <div className="grid grid-cols-7 gap-2 text-center text-[11px] font-bold text-slate-400 pb-1">
+                {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map((d) => (
+                  <div key={d}>{d}</div>
+                ))}
+              </div>
+
+              {/* 30 Days of November 2026 */}
+              <div className="grid grid-cols-7 gap-2">
+                {Array.from({ length: 30 }, (_, i) => {
+                  const dayNum = i + 1;
+                  const dateStr = `2026-11-${dayNum.toString().padStart(2, '0')}`;
+                  const isBlocked = (blockedDates[selectedCalendarListingId] || []).includes(dateStr);
+                  const isBooked = bookings.some(
+                    (b) => b.listingId === selectedCalendarListingId &&
+                      b.status === 'CONFIRMED' &&
+                      dateStr >= b.checkInDate &&
+                      dateStr <= b.checkOutDate
+                  );
+
+                  return (
+                    <button
+                      key={dayNum}
+                      type="button"
+                      disabled={isBooked}
+                      onClick={() => toggleDateBlock(selectedCalendarListingId, dateStr)}
+                      className={`p-3 rounded-xl border flex flex-col items-center justify-between gap-1 transition-all text-xs min-h-[64px] ${
+                        isBooked
+                          ? 'bg-rose-500/20 border-rose-500/50 text-rose-300 cursor-not-allowed'
+                          : isBlocked
+                          ? 'bg-slate-950 border-slate-700 text-slate-500 hover:border-slate-500'
+                          : 'bg-emerald-500/10 border-emerald-500/30 text-white hover:bg-emerald-500/20 hover:scale-105 shadow-sm'
+                      }`}
+                    >
+                      <span className="font-mono font-bold text-sm">{dayNum}</span>
+                      <span className="text-[10px] font-semibold">
+                        {isBooked ? (
+                          <span className="text-rose-400">Réservé</span>
+                        ) : isBlocked ? (
+                          <span className="flex items-center gap-0.5 text-slate-500">
+                            <Lock className="w-2.5 h-2.5" />
+                            <span>Bloqué</span>
+                          </span>
+                        ) : (
+                          <span className="text-emerald-400">Libre</span>
+                        )}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
+                <span>
+                  💡 Astuce : Bloquez vos dates si vous effectuez des travaux d'entretien (nettoyage cuve d'eau, révision groupe électrogène).
+                </span>
+                <span className="text-amber-400 font-semibold font-mono">
+                  {(blockedDates[selectedCalendarListingId] || []).length} date(s) bloquée(s)
+                </span>
+              </div>
             </div>
           </div>
         )}
@@ -418,6 +687,32 @@ export const PartnerPortal: React.FC<PartnerPortalProps> = ({
         <AddListingModal
           onClose={() => setShowAddModal(false)}
           onSubmit={onAddListing}
+        />
+      )}
+
+      {/* Rental Yield Calculator Modal */}
+      {showYieldModal && (
+        <RentalYieldCalculatorModal
+          onClose={() => setShowYieldModal(false)}
+        />
+      )}
+
+      {/* Property Inventory Modal (État des lieux) */}
+      {inventoryListing && (
+        <PropertyInventoryModal
+          listing={inventoryListing}
+          type="ENTRY"
+          onClose={() => setInventoryListing(null)}
+        />
+      )}
+
+      {/* Secure In-App Chat Modal */}
+      {chatListing && (
+        <SecureChatModal
+          listing={chatListing}
+          currentUserRole="HOST"
+          currentUserName="Bailleur Hôte"
+          onClose={() => setChatListing(null)}
         />
       )}
     </div>

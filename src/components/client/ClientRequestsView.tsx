@@ -16,10 +16,12 @@ import {
   CreditCard,
   ChevronRight,
   ShieldCheck,
-  Send
+  Send,
+  FileDown
 } from 'lucide-react';
 import { BookingRequest, ViewingRequest, PropertyListing } from '../../types';
 import { ProgressStepper, StepItem } from '../common/ProgressStepper';
+import { exportReceiptPdf } from '../../utils/exportReceiptPdf';
 
 interface ClientRequestsViewProps {
   bookings: BookingRequest[];
@@ -39,6 +41,19 @@ export const ClientRequestsView: React.FC<ClientRequestsViewProps> = ({
   const [activeTab, setActiveTab] = useState<'BOOKINGS' | 'VIEWINGS' | 'FAVORITES'>('BOOKINGS');
   const [selectedBookingForPayment, setSelectedBookingForPayment] = useState<BookingRequest | null>(null);
   const [paymentRefInput, setPaymentRefInput] = useState('');
+  const [exportingReceiptId, setExportingReceiptId] = useState<string | null>(null);
+
+  const handleExportReceipt = async (booking: BookingRequest) => {
+    setExportingReceiptId(booking.id);
+    try {
+      await exportReceiptPdf(booking);
+    } catch (err) {
+      console.error(err);
+      alert("Erreur lors de la génération du reçu PDF.");
+    } finally {
+      setExportingReceiptId(null);
+    }
+  };
 
   const formatCDF = (num: number) => new Intl.NumberFormat('fr-CD').format(num);
 
@@ -248,7 +263,17 @@ export const ClientRequestsView: React.FC<ClientRequestsViewProps> = ({
                           Référence paiement enregistrée : <span className="font-mono text-emerald-400">{booking.paymentReference}</span>. L'hôte vous attendra pour la remise des clés et le règlement du solde de 80%.
                         </p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleExportReceipt(booking)}
+                          disabled={exportingReceiptId === booking.id}
+                          className="py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-60"
+                        >
+                          <FileDown className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>{exportingReceiptId === booking.id ? 'Génération...' : 'Reçu MaishaPay (PDF)'}</span>
+                        </button>
+
                         <a
                           href={`tel:${booking.hostPhone}`}
                           className="py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1"

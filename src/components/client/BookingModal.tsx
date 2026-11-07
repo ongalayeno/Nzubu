@@ -1,10 +1,5 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import React, { useState } from 'react';
-import { X, Calendar, CreditCard, ShieldCheck, AlertCircle, CheckCircle2, Phone, Info } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Calendar, CreditCard, ShieldCheck, AlertCircle, CheckCircle2, Phone, Info, Clock, Sparkles } from 'lucide-react';
 import { PropertyListing, BookingRequest } from '../../types';
 
 interface BookingModalProps {
@@ -25,8 +20,49 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const [checkInDate, setCheckInDate] = useState(() => new Date(Date.now() + 86400000).toISOString().slice(0, 10));
   const [checkOutDate, setCheckOutDate] = useState(() => new Date(Date.now() + 4 * 86400000).toISOString().slice(0, 10));
   const [adultsCount, setAdultsCount] = useState(2);
-  const [paymentChannel, setPaymentChannel] = useState<'VODACOM_MPESA' | 'AIRTEL_MONEY' | 'CASH_AT_CHECKIN'>('VODACOM_MPESA');
+  const [paymentChannel, setPaymentChannel] = useState<'VODACOM_MPESA' | 'AIRTEL_MONEY' | 'ORANGE_MONEY' | 'CASH_AT_CHECKIN'>('VODACOM_MPESA');
   const [acceptPolicy, setAcceptPolicy] = useState(true);
+  const [remainingSeconds, setRemainingSeconds] = useState(1800); // 30 min hold timer
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setRemainingSeconds(prev => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const formatTimer = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
+  // Detect Congolese Mobile Money operator by prefix
+  const detectCarrier = (phone: string) => {
+    const cleaned = phone.replace(/[^0-9]/g, '');
+    if (cleaned.includes('24381') || cleaned.includes('24382') || cleaned.startsWith('081') || cleaned.startsWith('082') || cleaned.startsWith('083')) {
+      return { name: 'Vodacom M-Pesa', ussd: '*111#', color: 'text-rose-400', key: 'VODACOM_MPESA' as const };
+    }
+    if (cleaned.includes('24397') || cleaned.includes('24398') || cleaned.includes('24399') || cleaned.startsWith('097') || cleaned.startsWith('098') || cleaned.startsWith('099')) {
+      return { name: 'Airtel Money', ussd: '*501#', color: 'text-red-400', key: 'AIRTEL_MONEY' as const };
+    }
+    if (cleaned.includes('24384') || cleaned.includes('24385') || cleaned.startsWith('084') || cleaned.startsWith('085')) {
+      return { name: 'Orange Money', ussd: '*144#', color: 'text-amber-400', key: 'ORANGE_MONEY' as const };
+    }
+    if (cleaned.includes('24380') || cleaned.startsWith('080')) {
+      return { name: 'Africell Afrimoney', ussd: '*111#', color: 'text-purple-400', key: 'VODACOM_MPESA' as const };
+    }
+    return { name: 'Opérateur Mobile Money', ussd: '*111#', color: 'text-slate-300', key: 'VODACOM_MPESA' as const };
+  };
+
+  const detected = detectCarrier(guestPhone);
+
+  // Auto-switch channel when carrier detected
+  useEffect(() => {
+    if (detected.key && paymentChannel !== 'CASH_AT_CHECKIN') {
+      setPaymentChannel(detected.key as any);
+    }
+  }, [guestPhone]);
 
   // Calculate nights
   const start = new Date(checkInDate);
@@ -98,6 +134,19 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           </button>
         </div>
 
+        {/* Animated 30-min hold bar */}
+        <div className="p-3 bg-gradient-to-r from-amber-500/20 via-rose-500/10 to-amber-500/20 border-b border-amber-500/30 flex items-center justify-between text-xs px-5">
+          <div className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-amber-400 animate-pulse shrink-0" />
+            <span className="text-[11px] text-amber-200 font-semibold">
+              Blocage garanti des dates pendant 30 min après envoi
+            </span>
+          </div>
+          <span className="px-2 py-0.5 rounded-full bg-slate-950 font-mono font-bold text-amber-300 text-xs border border-amber-500/40">
+            {formatTimer(remainingSeconds)}
+          </span>
+        </div>
+
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-5 space-y-4 flex-1">
           {/* Dates selection */}
@@ -147,9 +196,14 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">
-                Téléphone mobile
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-medium text-slate-300">
+                  Téléphone mobile
+                </label>
+                <span className={`text-[10px] font-bold ${detected.color}`}>
+                  {detected.name}
+                </span>
+              </div>
               <input
                 type="tel"
                 value={guestPhone}
@@ -212,55 +266,89 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             </div>
           </div>
 
-          {/* Host Payment Method Selection (Direct Payment to Host, not NZUBU) */}
+          {/* Host Payment Method Selection (Direct Payment / MaishaPay) */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-medium text-slate-300">
-              Canal de paiement direct accepté par l'hôte :
-            </label>
-            <div className="grid grid-cols-3 gap-2 text-xs">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-medium text-slate-300">
+                Canal de règlement direct de l'avance (20%) :
+              </label>
+              <span className="text-[10px] text-emerald-400 font-medium">
+                MaishaPay Mobile Money
+              </span>
+            </div>
+
+            <div className="grid grid-cols-4 gap-2 text-xs">
               <button
                 type="button"
                 onClick={() => setPaymentChannel('VODACOM_MPESA')}
-                className={`p-2.5 rounded-xl border text-left transition-all ${
+                className={`p-2 rounded-xl border text-left transition-all ${
                   paymentChannel === 'VODACOM_MPESA'
-                    ? 'bg-rose-500/20 border-rose-500 text-white'
+                    ? 'bg-rose-500/20 border-rose-500 text-white shadow-sm'
                     : 'bg-slate-800/70 border-slate-700 text-slate-400 hover:text-white'
                 }`}
               >
                 <div className="font-bold text-[11px] text-rose-400">Vodacom</div>
-                <div className="text-[10px]">M-Pesa RDC</div>
+                <div className="text-[9px]">M-Pesa *111#</div>
               </button>
 
               <button
                 type="button"
                 onClick={() => setPaymentChannel('AIRTEL_MONEY')}
-                className={`p-2.5 rounded-xl border text-left transition-all ${
+                className={`p-2 rounded-xl border text-left transition-all ${
                   paymentChannel === 'AIRTEL_MONEY'
-                    ? 'bg-rose-500/20 border-rose-500 text-white'
+                    ? 'bg-rose-500/20 border-rose-500 text-white shadow-sm'
                     : 'bg-slate-800/70 border-slate-700 text-slate-400 hover:text-white'
                 }`}
               >
                 <div className="font-bold text-[11px] text-red-400">Airtel</div>
-                <div className="text-[10px]">Airtel Money</div>
+                <div className="text-[9px]">Money *501#</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPaymentChannel('ORANGE_MONEY')}
+                className={`p-2 rounded-xl border text-left transition-all ${
+                  paymentChannel === 'ORANGE_MONEY'
+                    ? 'bg-rose-500/20 border-rose-500 text-white shadow-sm'
+                    : 'bg-slate-800/70 border-slate-700 text-slate-400 hover:text-white'
+                }`}
+              >
+                <div className="font-bold text-[11px] text-amber-400">Orange</div>
+                <div className="text-[9px]">Money *144#</div>
               </button>
 
               <button
                 type="button"
                 onClick={() => setPaymentChannel('CASH_AT_CHECKIN')}
-                className={`p-2.5 rounded-xl border text-left transition-all ${
+                className={`p-2 rounded-xl border text-left transition-all ${
                   paymentChannel === 'CASH_AT_CHECKIN'
-                    ? 'bg-rose-500/20 border-rose-500 text-white'
+                    ? 'bg-rose-500/20 border-rose-500 text-white shadow-sm'
                     : 'bg-slate-800/70 border-slate-700 text-slate-400 hover:text-white'
                 }`}
               >
                 <div className="font-bold text-[11px] text-emerald-400">Espèces</div>
-                <div className="text-[10px]">À l'arrivée</div>
+                <div className="text-[9px]">À l'arrivée</div>
               </button>
             </div>
+
+            {/* Direct USSD Dial Prompt */}
+            <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between text-xs mt-2">
+              <div className="text-[11px] text-slate-300">
+                <span>Code USSD direct {detected.name} : </span>
+                <span className="font-mono font-bold text-amber-300">{detected.ussd}</span>
+              </div>
+              <a
+                href={`tel:${encodeURIComponent(detected.ussd)}`}
+                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-[11px] border border-amber-500/30 transition-colors"
+              >
+                Composer {detected.ussd}
+              </a>
+            </div>
+
             <p className="text-[11px] text-slate-400 flex items-start gap-1 mt-1">
               <Info className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
               <span>
-                NZUBU ne collecte pas le prix du logement. Le paiement s'effectue directement sur le compte de l'hôte après acceptation.
+                NZUBU ne collecte pas le prix du logement. Le paiement s'effectue directement sur le compte de l'hôte (ou via MaishaPay) après acceptation.
               </span>
             </p>
           </div>

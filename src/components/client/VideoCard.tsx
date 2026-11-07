@@ -20,7 +20,11 @@ import {
   Info,
   Flag,
   Sparkles,
-  Camera
+  Camera,
+  Droplets,
+  Zap,
+  Gauge,
+  Flame
 } from 'lucide-react';
 import { PropertyListing } from '../../types';
 
@@ -63,12 +67,29 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   const [hasVideoError, setHasVideoError] = useState<boolean>(false);
   const [activePhotoIndex, setActivePhotoIndex] = useState<number>(0);
 
+  // UX Enhancements: Double-tap, Data saver, Mute prompt, Chapters
+  const [showHeartAnimation, setShowHeartAnimation] = useState(false);
+  const [isDataSaver, setIsDataSaver] = useState(false);
+  const [showMutePrompt, setShowMutePrompt] = useState(true);
+  const lastTapRef = useRef<number>(0);
+
+  // 4 inspection chapters
+  const chapters = [
+    { label: 'Façade', startSec: 0, percent: 0 },
+    { label: 'Salon', startSec: 10, percent: 25 },
+    { label: 'Chambres', startSec: 22, percent: 55 },
+    { label: 'Compteur & Eau', startSec: 34, percent: 80 },
+  ];
+
   // Reset states when listing changes
   useEffect(() => {
     setHasVideoError(false);
     setProgress(0);
     setActivePhotoIndex(0);
     setIsPlaying(true);
+    setShowMutePrompt(true);
+    const timer = setTimeout(() => setShowMutePrompt(false), 4000);
+    return () => clearTimeout(timer);
   }, [listing.id]);
 
   // Video playback management
@@ -120,7 +141,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   };
 
   const togglePlayPause = () => {
-    if (hasVideoError) {
+    if (hasVideoError || isDataSaver) {
       setIsPlaying((prev) => !prev);
     } else if (videoRef.current) {
       if (isPlaying) {
@@ -133,6 +154,30 @@ export const VideoCard: React.FC<VideoCardProps> = ({
     }
     setShowPlayPauseFeedback(true);
     setTimeout(() => setShowPlayPauseFeedback(false), 600);
+  };
+
+  const handleAreaClick = (e: React.MouseEvent) => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 320) {
+      if (!listing.isFavorite) onToggleFavorite(listing.id);
+      setShowHeartAnimation(true);
+      setTimeout(() => setShowHeartAnimation(false), 900);
+    } else {
+      togglePlayPause();
+    }
+    lastTapRef.current = now;
+  };
+
+  const handleSeekChapter = (sec: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (videoRef.current) {
+      videoRef.current.currentTime = sec;
+      setProgress((sec / (videoRef.current.duration || 40)) * 100);
+      if (!isPlaying) {
+        videoRef.current.play().catch(() => {});
+        setIsPlaying(true);
+      }
+    }
   };
 
   const handleShare = (e: React.MouseEvent) => {
@@ -153,8 +198,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({
 
   return (
     <div className="relative w-full h-full bg-slate-950 overflow-hidden select-none">
-      {/* Primary Video or Graceful Ken Burns Visual Tour Fallback */}
-      {!hasVideoError ? (
+      {/* Primary Video or Graceful Ken Burns Visual Tour Fallback / Data Saver */}
+      {!hasVideoError && !isDataSaver ? (
         <video
           ref={videoRef}
           poster={listing.media.videoThumbnail}
@@ -164,9 +209,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           crossOrigin="anonymous"
           preload="metadata"
           onTimeUpdate={handleTimeUpdate}
-          onClick={togglePlayPause}
+          onClick={handleAreaClick}
           onError={() => {
-            // If the remote video cannot be loaded by the browser sandbox, smoothly fallback to Ken Burns tour
             setHasVideoError(true);
           }}
           className="absolute inset-0 w-full h-full object-cover cursor-pointer"
@@ -175,9 +219,9 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           <source src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4" type="video/mp4" />
         </video>
       ) : (
-        /* Ken Burns Animated Visual Walkthrough */
+        /* Ken Burns Animated Visual Walkthrough / Data Saver */
         <div 
-          onClick={togglePlayPause}
+          onClick={handleAreaClick}
           className="absolute inset-0 w-full h-full cursor-pointer overflow-hidden bg-slate-950"
         >
           {photosList.map((photo, index) => (
@@ -198,12 +242,19 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           ))}
 
           {/* Tag indicating visual tour */}
-          <div className="absolute top-16 left-4 z-20 pointer-events-none">
+          <div className="absolute top-20 left-4 z-20 pointer-events-none">
             <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md text-amber-300 border border-amber-500/30 text-[10px] font-bold">
               <Camera className="w-3 h-3 text-amber-400" />
-              <span>Visite Visuelle Guidée HD</span>
+              <span>{isDataSaver ? 'Mode Éco 4G (Photos HD)' : 'Visite Visuelle Guidée HD'}</span>
             </span>
           </div>
+        </div>
+      )}
+
+      {/* Double tap heart feedback animation */}
+      {showHeartAnimation && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30 animate-fade-in">
+          <Heart className="w-24 h-24 text-rose-500 fill-rose-500 drop-shadow-2xl animate-ping" />
         </div>
       )}
 
@@ -218,7 +269,14 @@ export const VideoCard: React.FC<VideoCardProps> = ({
 
       {/* Top Bar Overlay */}
       <div className="absolute top-0 left-0 right-0 p-4 pt-5 bg-gradient-to-b from-black/80 via-black/30 to-transparent flex items-center justify-between z-20 pointer-events-none">
-        <div className="flex items-center gap-2 pointer-events-auto">
+        <div className="flex flex-wrap items-center gap-1.5 pointer-events-auto">
+          {listing.id === '1' && (
+            <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-r from-amber-500 to-rose-500 text-white text-[10px] font-black shadow-lg shadow-rose-500/30 animate-pulse">
+              <Flame className="w-3 h-3 text-white fill-white" />
+              <span>Super-Boost 48h</span>
+            </span>
+          )}
+
           <button 
             onClick={() => onOpenVerification(listing)}
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 backdrop-blur-md text-xs font-semibold hover:bg-emerald-500/30 transition-colors"
@@ -232,8 +290,21 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           </span>
         </div>
 
-        {/* Audio Mute/Unmute */}
+        {/* Data Saver Mode & Audio Mute/Unmute */}
         <div className="pointer-events-auto flex items-center gap-2">
+          <button
+            onClick={() => setIsDataSaver(!isDataSaver)}
+            className={`px-2 py-1 rounded-full text-[10px] font-bold border backdrop-blur-md transition-all flex items-center gap-1 ${
+              isDataSaver
+                ? 'bg-amber-500 text-slate-950 border-amber-400 font-black'
+                : 'bg-black/50 text-slate-300 border-white/10 hover:bg-black/70'
+            }`}
+            title="Mode Éco-Données (Kinshasa 4G)"
+          >
+            <Gauge className="w-3 h-3" />
+            <span>{isDataSaver ? 'Éco 4G' : 'Vidéo HD'}</span>
+          </button>
+
           <button
             onClick={onToggleMute}
             aria-label={isMuted ? "Activer le son" : "Couper le son"}
@@ -243,6 +314,39 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Chaptered Inspection Progress Bar (4 Segments) */}
+      <div className="absolute top-14 left-4 right-14 z-20 flex items-center gap-1.5 pointer-events-auto">
+        {chapters.map((ch, idx) => (
+          <button
+            key={idx}
+            onClick={(e) => handleSeekChapter(ch.startSec, e)}
+            className="flex-1 group py-1 text-left"
+            title={`Aller à : ${ch.label}`}
+          >
+            <div className="w-full h-1 bg-white/20 rounded-full overflow-hidden group-hover:h-1.5 transition-all">
+              <div 
+                className="h-full bg-rose-500 transition-all duration-200" 
+                style={{ width: `${Math.min(100, Math.max(0, (progress - ch.percent) * 3.5))}%` }} 
+              />
+            </div>
+            <span className="text-[9px] text-white/70 font-semibold group-hover:text-white transition-colors truncate block mt-0.5 drop-shadow">
+              {ch.label}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* Persistent Audio Unmute Prompt during first 4 seconds */}
+      {isMuted && showMutePrompt && (
+        <div 
+          onClick={onToggleMute}
+          className="absolute top-24 right-4 z-20 bg-black/85 backdrop-blur-md border border-amber-500/40 text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-lg flex items-center gap-1.5 cursor-pointer animate-bounce pointer-events-auto"
+        >
+          <VolumeX className="w-3.5 h-3.5 text-amber-400" />
+          <span>Toucher pour le son</span>
+        </div>
+      )}
 
       {/* Vertical Navigation Arrows (desktop/tablet helpers) */}
       <div className="absolute top-1/2 -translate-y-1/2 left-3 hidden md:flex flex-col gap-2 z-20">

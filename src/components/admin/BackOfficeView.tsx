@@ -31,11 +31,16 @@ import {
   Pause,
   Plus,
   Video,
-  CreditCard
+  CreditCard,
+  Radar,
+  Download,
+  Radio,
+  FileSpreadsheet
 } from 'lucide-react';
 import { PropertyListing, FieldMission, BookingRequest, SecurityAlert, SponsoredAd } from '../../types';
 import { canApproveListing, isListingPublic } from '../../domain/listing';
 import { isAdActive, getRemainingAdTime, partitionAds } from '../../domain/ads';
+import { KinshasaRadarMap } from '../common/KinshasaRadarMap';
 
 interface BackOfficeViewProps {
   listings: PropertyListing[];
@@ -66,13 +71,39 @@ export const BackOfficeView: React.FC<BackOfficeViewProps> = ({
   onDeleteAd,
   onOpenCreateAd,
 }) => {
-  const [activeTab, setActiveTab] = useState<'VALIDATIONS' | 'MISSIONS' | 'COMPLIANCE' | 'MONETIZATION'>('VALIDATIONS');
+  const [activeTab, setActiveTab] = useState<'VALIDATIONS' | 'MISSIONS' | 'RADAR' | 'COMPLIANCE' | 'MONETIZATION' | 'AUDIT'>('VALIDATIONS');
   const [adFilter, setAdFilter] = useState<'ALL' | 'ACTIVE' | 'EXPIRED'>('ALL');
+  const [renewalNotifiedIds, setRenewalNotifiedIds] = useState<string[]>([]);
 
   const formatCDF = (num: number) => new Intl.NumberFormat('fr-CD').format(num);
 
   const pendingReports = missions.filter((m) => m.status === 'REPORT_SUBMITTED');
   const activeSecurityAlerts = securityAlerts.filter((a) => !a.resolved);
+
+  // Export audit as CSV
+  const handleExportAuditCsv = () => {
+    const confirmedBookings = bookings.filter(b => b.status === 'CONFIRMED' || b.status === 'COMPLETED');
+    const headers = ['Ref Réservation', 'Date', 'Logement', 'Commune', 'Client', 'Total (CDF)', 'Avance 20% (CDF)', 'Commission NZUBU 8% (CDF)', 'Canal'];
+    const rows = confirmedBookings.map(b => [
+      b.id,
+      b.createdAt,
+      `"${b.listingTitle.replace(/"/g, '""')}"`,
+      b.commune,
+      `"${b.guestName}"`,
+      b.totalPriceCdf,
+      b.advanceAmountCdf,
+      Math.round(b.totalPriceCdf * 0.08),
+      b.paymentMethod || 'MaishaPay'
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `nzubu-audit-comptable-${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <div className="w-full h-full overflow-y-auto bg-slate-950 text-white p-4 sm:p-6 space-y-6">
@@ -286,6 +317,18 @@ export const BackOfficeView: React.FC<BackOfficeViewProps> = ({
           </button>
 
           <button
+            onClick={() => setActiveTab('RADAR')}
+            className={`px-3.5 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1.5 ${
+              activeTab === 'RADAR'
+                ? 'bg-indigo-500 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Radar className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Radar Kinshasa Live</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('COMPLIANCE')}
             className={`px-3.5 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1.5 ${
               activeTab === 'COMPLIANCE'
@@ -308,11 +351,79 @@ export const BackOfficeView: React.FC<BackOfficeViewProps> = ({
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
             <span>Régie Pub & MaishaPay ({sponsoredAds.length})</span>
           </button>
+
+          <button
+            onClick={() => setActiveTab('AUDIT')}
+            className={`px-3.5 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1.5 ${
+              activeTab === 'AUDIT'
+                ? 'bg-emerald-500 text-slate-950 font-black shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Audit & Marges 8%</span>
+          </button>
         </div>
 
         {/* Tab 1: Market Review & Publication */}
         {activeTab === 'VALIDATIONS' && (
           <div className="space-y-4">
+            {/* J-15 Badge Expiration Monitoring Alert Box */}
+            <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-xs space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-500/20 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-amber-400 animate-pulse" />
+                  <span className="font-bold text-amber-300">
+                    Surveillance Proactive : Alertes J-15 Expiration Badges 90 Jours
+                  </span>
+                </div>
+                <span className="text-[10px] text-amber-400 font-mono">
+                  Garantie d'intégrité Kinshasa (§9.2)
+                </span>
+              </div>
+
+              <p className="text-slate-300 text-[11px] leading-relaxed">
+                Le modèle NZUBU impose une re-certification physique tous les 90 jours. Les logements ci-dessous approchent de l'échéance des 3 mois et requièrent une mission de vérification terrain pour maintenir leur publication active.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                {listings.slice(0, 2).map((expiring) => (
+                  <div
+                    key={expiring.id}
+                    className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-between gap-2"
+                  >
+                    <div>
+                      <span className="font-bold text-white block line-clamp-1">{expiring.title}</span>
+                      <span className="text-[10px] text-slate-400">{expiring.commune} · Échéance badge : J-12</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setRenewalNotifiedIds(prev => [...prev, expiring.id])}
+                      disabled={renewalNotifiedIds.includes(expiring.id)}
+                      className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all ${
+                        renewalNotifiedIds.includes(expiring.id)
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                          : 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-sm'
+                      }`}
+                    >
+                      {renewalNotifiedIds.includes(expiring.id) ? (
+                        <>
+                          <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                          <span>Mission J-15 planifiée</span>
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="w-3 h-3" />
+                          <span>Planifier Re-contrôle J-15</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <div className="flex items-center justify-between text-xs text-slate-400">
               <span className="font-semibold text-white">
                 Contrôle de conformité avant diffusion dans le feed
@@ -867,6 +978,116 @@ export const BackOfficeView: React.FC<BackOfficeViewProps> = ({
                     </div>
                   );
                 })}
+            </div>
+          </div>
+        )}
+
+        {/* Tab 5: Kinshasa Operations Radar Map */}
+        {activeTab === 'RADAR' && (
+          <div className="space-y-4">
+            <KinshasaRadarMap listings={listings} missions={missions} />
+          </div>
+        )}
+
+        {/* Tab 6: Accounting Audit & Commissions (8% - 10%) */}
+        {activeTab === 'AUDIT' && (
+          <div className="space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
+              <div>
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                  <span>Grand Livre & Audit des Commissions d'Intermédiation</span>
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Rémunération de la plateforme : 8% sur séjours confirmés via MaishaPay et honoraires baux Loi 15/025.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleExportAuditCsv}
+                className="py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition-all active:scale-95"
+              >
+                <Download className="w-4 h-4" />
+                <span>Exporter Journal d'Audit (CSV)</span>
+              </button>
+            </div>
+
+            {/* Financial Summary Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-1">
+                <span className="text-xs text-slate-400 block">Volume Total Transigé</span>
+                <div className="text-xl font-black text-white font-mono">
+                  {formatCDF(bookings.filter(b => b.status === 'CONFIRMED' || b.status === 'COMPLETED').reduce((acc, curr) => acc + curr.totalPriceCdf, 0))} CDF
+                </div>
+                <span className="text-[10px] text-slate-400">100% en Franc Congolais (CDF)</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-1">
+                <span className="text-xs text-slate-400 block">Avances 20% Encaissées (Hôtes)</span>
+                <div className="text-xl font-black text-rose-400 font-mono">
+                  {formatCDF(bookings.filter(b => b.status === 'CONFIRMED' || b.status === 'COMPLETED').reduce((acc, curr) => acc + curr.advanceAmountCdf, 0))} CDF
+                </div>
+                <span className="text-[10px] text-rose-300">Règlement direct Mobile Money / MaishaPay</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-1">
+                <span className="text-xs text-slate-400 block">Commissions NZUBU Net (8%)</span>
+                <div className="text-xl font-black text-emerald-400 font-mono">
+                  {formatCDF(Math.round(bookings.filter(b => b.status === 'CONFIRMED' || b.status === 'COMPLETED').reduce((acc, curr) => acc + curr.totalPriceCdf, 0) * 0.08))} CDF
+                </div>
+                <span className="text-[10px] text-emerald-300">Marge plateforme certifiée</span>
+              </div>
+            </div>
+
+            {/* Detailed Transaction Audit Ledger */}
+            <div className="rounded-2xl bg-slate-900 border border-slate-800 overflow-hidden shadow-xl">
+              <div className="p-4 border-b border-slate-800 flex items-center justify-between text-xs">
+                <span className="font-bold text-white">Écritures comptables des séjours validés</span>
+                <span className="text-slate-400 font-mono">{bookings.length} transaction(s)</span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs text-slate-300">
+                  <thead className="bg-slate-950/80 text-[10px] text-slate-400 uppercase font-mono border-b border-slate-800">
+                    <tr>
+                      <th className="p-3">Réf. Dossier</th>
+                      <th className="p-3">Logement & Commune</th>
+                      <th className="p-3">Voyageur</th>
+                      <th className="p-3 text-right">Loyer Total CDF</th>
+                      <th className="p-3 text-right">Avance 20% CDF</th>
+                      <th className="p-3 text-right">Comm. 8% CDF</th>
+                      <th className="p-3">Canal</th>
+                      <th className="p-3">Statut</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 font-mono">
+                    {bookings.map((b) => (
+                      <tr key={b.id} className="hover:bg-slate-800/30 transition-colors">
+                        <td className="p-3 font-bold text-white">{b.id}</td>
+                        <td className="p-3 font-sans">
+                          <div className="font-bold text-white line-clamp-1">{b.listingTitle}</div>
+                          <div className="text-[10px] text-slate-400">{b.commune}</div>
+                        </td>
+                        <td className="p-3 font-sans text-white">{b.guestName}</td>
+                        <td className="p-3 text-right font-bold text-white">{formatCDF(b.totalPriceCdf)}</td>
+                        <td className="p-3 text-right text-rose-300">{formatCDF(b.advanceAmountCdf)}</td>
+                        <td className="p-3 text-right font-bold text-emerald-400">{formatCDF(Math.round(b.totalPriceCdf * 0.08))}</td>
+                        <td className="p-3 font-sans text-[11px] text-slate-300">{b.paymentMethod || 'MaishaPay'}</td>
+                        <td className="p-3 font-sans">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            b.status === 'CONFIRMED'
+                              ? 'bg-emerald-500/20 text-emerald-300'
+                              : 'bg-amber-500/20 text-amber-300'
+                          }`}>
+                            {b.status === 'CONFIRMED' ? 'Confirmé' : 'En cours'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
