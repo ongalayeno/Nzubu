@@ -797,6 +797,7 @@ export default function App() {
                 <AgentFieldApp
                   missions={missions}
                   onCompleteMission={handleCompleteMission}
+                  securityAlerts={securityAlerts}
                 />
               )}
               {currentRole === 'OPERATIONS_ADMIN' && (

@@ -8,7 +8,7 @@ import { PropertyListing, SponsoredAd } from '../../types';
 import { VideoCard } from './VideoCard';
 import { SponsoredVideoCard } from './SponsoredVideoCard';
 import { isAdActive } from '../../domain/ads';
-import { Filter, SlidersHorizontal, MapPin, Sparkles } from 'lucide-react';
+import { Filter, SlidersHorizontal, MapPin, Sparkles, Zap } from 'lucide-react';
 
 interface TikTokFeedProps {
   listings: PropertyListing[];
@@ -45,6 +45,7 @@ export const TikTokFeed: React.FC<TikTokFeedProps> = ({
 }) => {
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [isMuted, setIsMuted] = useState<boolean>(true); // Muted by default per brief §13.6
+  const [isEcoDataMode, setIsEcoDataMode] = useState<boolean>(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const touchStartY = useRef<number>(0);
 
@@ -238,6 +239,23 @@ export const TikTokFeed: React.FC<TikTokFeedProps> = ({
               : 'Longue durée'}
           </span>
         </button>
+
+        {/* Separator */}
+        <span className="text-white/30 text-xs">|</span>
+
+        {/* Mode Éco-Data Réseau Faible Kinshasa (-85% Mo) */}
+        <button
+          onClick={() => setIsEcoDataMode((prev) => !prev)}
+          className={`px-2.5 py-1 rounded-full backdrop-blur-md text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap ${
+            isEcoDataMode
+              ? 'bg-emerald-500 text-slate-950 font-bold shadow-md shadow-emerald-500/30'
+              : 'bg-black/50 border border-emerald-500/30 text-emerald-400 hover:bg-black/70'
+          }`}
+          title="Mode basse consommation : Remplace les vidéos lourdes par des photos optimisées (-85% mégaoctets sur réseaux mobiles)"
+        >
+          <Zap className="w-3 h-3" />
+          <span>{isEcoDataMode ? 'Éco-Data Actif (-85%)' : 'Éco-Data 3G/4G'}</span>
+        </button>
       </div>
 
       {/* Main active item: either Listing VideoCard or SponsoredVideoCard */}
@@ -256,6 +274,7 @@ export const TikTokFeed: React.FC<TikTokFeedProps> = ({
           onPrevVideo={handlePrev}
           hasPrev={currentIndex > 0}
           hasNext={currentIndex < combinedFeed.length - 1}
+          isEcoDataMode={isEcoDataMode}
         />
       ) : (
         <SponsoredVideoCard

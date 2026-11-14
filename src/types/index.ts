@@ -195,6 +195,16 @@ export interface FieldMission {
   photos?: MissionPhotoEvidence[];
   agentSignature?: AgentSignature;
   completedAt?: string;
+  durationMinutes?: number;
+  sha256Seal?: string;
+  outageTracker?: {
+    snelOutage: boolean;
+    regidesoOutage: boolean;
+    reportedAt?: string;
+  };
+  snelMeterNumber?: string;
+  snelMeterIndex?: string;
+  regidesoPressureBar?: number;
 }
 
 export interface AgentSignature {
@@ -259,6 +269,7 @@ export interface SecurityAlert {
   notes: string;
   timestamp: string;
   resolved: boolean;
+  resolvedAt?: string;
   gpsCoordinates?: GpsCoordinates;
   photos?: MissionPhotoEvidence[];
   checklistFailures?: string[];

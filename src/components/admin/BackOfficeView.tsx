@@ -35,12 +35,14 @@ import {
   Radar,
   Download,
   Radio,
-  FileSpreadsheet
+  FileSpreadsheet,
+  BarChart3
 } from 'lucide-react';
 import { PropertyListing, FieldMission, BookingRequest, SecurityAlert, SponsoredAd } from '../../types';
 import { canApproveListing, isListingPublic } from '../../domain/listing';
 import { isAdActive, getRemainingAdTime, partitionAds } from '../../domain/ads';
 import { KinshasaRadarMap } from '../common/KinshasaRadarMap';
+import { InspectionStatsView } from './InspectionStatsView';
 
 interface BackOfficeViewProps {
   listings: PropertyListing[];
@@ -71,7 +73,7 @@ export const BackOfficeView: React.FC<BackOfficeViewProps> = ({
   onDeleteAd,
   onOpenCreateAd,
 }) => {
-  const [activeTab, setActiveTab] = useState<'VALIDATIONS' | 'MISSIONS' | 'RADAR' | 'COMPLIANCE' | 'MONETIZATION' | 'AUDIT'>('VALIDATIONS');
+  const [activeTab, setActiveTab] = useState<'VALIDATIONS' | 'MISSIONS' | 'STATISTICS' | 'RADAR' | 'COMPLIANCE' | 'MONETIZATION' | 'AUDIT'>('VALIDATIONS');
   const [adFilter, setAdFilter] = useState<'ALL' | 'ACTIVE' | 'EXPIRED'>('ALL');
   const [renewalNotifiedIds, setRenewalNotifiedIds] = useState<string[]>([]);
 
@@ -314,6 +316,18 @@ export const BackOfficeView: React.FC<BackOfficeViewProps> = ({
                 🚨 {activeSecurityAlerts.length}
               </span>
             )}
+          </button>
+
+          <button
+            onClick={() => setActiveTab('STATISTICS')}
+            className={`px-3.5 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1.5 ${
+              activeTab === 'STATISTICS'
+                ? 'bg-sky-500 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <BarChart3 className="w-3.5 h-3.5 text-sky-400" />
+            <span>Statistiques & Performance Terrain</span>
           </button>
 
           <button
@@ -1090,6 +1104,11 @@ export const BackOfficeView: React.FC<BackOfficeViewProps> = ({
               </div>
             </div>
           </div>
+        )}
+
+        {/* Tab 7: Performance Statistics & Universal CSV Export */}
+        {activeTab === 'STATISTICS' && (
+          <InspectionStatsView missions={missions} listings={listings} />
         )}
       </div>
     </div>

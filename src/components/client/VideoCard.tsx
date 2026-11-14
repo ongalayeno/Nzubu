@@ -42,6 +42,7 @@ interface VideoCardProps {
   onPrevVideo?: () => void;
   hasPrev?: boolean;
   hasNext?: boolean;
+  isEcoDataMode?: boolean;
 }
 
 export const VideoCard: React.FC<VideoCardProps> = ({
@@ -58,6 +59,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   onPrevVideo,
   hasPrev,
   hasNext,
+  isEcoDataMode = false,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
@@ -199,7 +201,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   return (
     <div className="relative w-full h-full bg-slate-950 overflow-hidden select-none">
       {/* Primary Video or Graceful Ken Burns Visual Tour Fallback / Data Saver */}
-      {!hasVideoError && !isDataSaver ? (
+      {!hasVideoError && !isDataSaver && !isEcoDataMode ? (
         <video
           ref={videoRef}
           poster={listing.media.videoThumbnail}
