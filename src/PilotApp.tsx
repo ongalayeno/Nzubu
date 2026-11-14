@@ -6,6 +6,8 @@ import { LiveAgentWorkspace } from './components/agent/LiveAgentWorkspace';
 import { LivePartnerDashboard } from './components/partner/LivePartnerDashboard';
 import { LiveAdminDashboard } from './components/admin/LiveAdminDashboard';
 import { LayoutDashboard, LogOut, ShieldCheck, Video } from 'lucide-react';
+import { apiAdToSponsoredAd, type ApiAdRow } from './utils/listingAdapter';
+import type { AgentSignature, SponsoredAd } from './types';
 
 type User = { id: string; role: 'CLIENT' | 'PARTNER' | 'FIELD_AGENT' | 'OPERATIONS_ADMIN'; email: string | null; phone: string | null };
 type Listing = { id: string; title: string; commune: string; rental_mode: 'SHORT_STAY' | 'LONG_TERM'; price_cdf: number; partner_id?: string; status?: string; video_status?: string; duplicate_of?: string; verified_until?: string; verified_at?: string; verified_by?: string; partner_email?: string | null; partner_phone?: string | null; data?: { description?: string; furnished?: boolean; propertyType?: string; neighborhood?: string; amenities?: string[]; chargesCdf?: number; securityDepositMonths?: number; conditions?: string } };
@@ -73,6 +75,7 @@ export default function PilotApp() {
   const [resetCodeSent, setResetCodeSent] = useState(false);
   const [message, setMessage] = useState('');
   const [listings, setListings] = useState<Listing[]>([]);
+  const [ads, setAds] = useState<SponsoredAd[]>([]);
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [missions, setMissions] = useState<Mission[]>([]);
@@ -120,13 +123,14 @@ export default function PilotApp() {
   const bookingKeys = useRef<Record<string,string>>({});
 
   const refresh = async (actor: User | null = user) => {
+    const adsPromise = api<{ ads: ApiAdRow[] }>('/ads').then((v) => setAds(v.ads.map(apiAdToSponsoredAd))).catch(() => {});
     if (!actor) {
-      const publicData = await api<{ listings: Listing[] }>('/listings');
+      const [publicData] = await Promise.all([api<{ listings: Listing[] }>('/listings'), adsPromise]);
       setListings(publicData.listings);
       return;
     }
     const listPath = actor.role === 'OPERATIONS_ADMIN' ? '/admin/listings' : actor.role === 'PARTNER' ? '/partner/listings' : actor.role === 'FIELD_AGENT' ? '/agent/listings' : '/listings';
-    const tasks: Promise<unknown>[] = [api<{ listings: Listing[] }>(listPath).then((value) => setListings(value.listings))];
+    const tasks: Promise<unknown>[] = [api<{ listings: Listing[] }>(listPath).then((value) => setListings(value.listings)), adsPromise];
     if (actor.role === 'CLIENT') tasks.push(api<{ listingIds: string[] }>('/me/favorites').then((value) => setFavoriteIds(value.listingIds)));
     if (actor.role !== 'FIELD_AGENT') tasks.push(api<{ bookings: Booking[] }>('/bookings').then((value) => setBookings(value.bookings)));
     if (actor.role !== 'FIELD_AGENT') tasks.push(api<{ applications: LeaseApplication[] }>('/lease-applications').then((value) => setApplications(value.applications)));
@@ -213,7 +217,10 @@ export default function PilotApp() {
     setDraftLoaded(true);
   };
 
-  const submitFieldMission = async (mission: Mission) => {
+  const submitFieldMission = async (
+    mission: Mission,
+    fieldMetadata?: { snelMeterNumber?: string; snelMeterIndex?: string; regidesoPressureBar?: number; agentSignature?: AgentSignature; sha256Seal?: string }
+  ) => {
     if (!user || !gps || syncBusy.current) return;
     const draft: PendingMissionReport = { missionId: mission.id, listingId: mission.listing_id, checks, gps, outcome, notes, photos: offlinePhotos, photoCaptions, idempotencyKey: reportKey, queued: true };
     try { await saveMissionDraft(user.id, draft); setDraftPending(true); }
@@ -229,7 +236,15 @@ export default function PilotApp() {
         const uploaded = await api<{ document: Document }>(`/listings/${draft.listingId}/documents`, { method: 'POST', body: file, headers: { 'content-type': file.type, 'x-document-kind': 'INSPECTION_PHOTO', 'idempotency-key': `${draft.idempotencyKey}-${index}` } });
         photoIds.push(uploaded.document.id);
       }
-      await post(`/missions/${draft.missionId}/report`, { outcome: draft.outcome, checks: draft.checks, gps: draft.gps, photoIds, photoCaptions: draft.photoCaptions || [], notes: draft.notes }, { 'idempotency-key': draft.idempotencyKey });
+      await post(`/missions/${draft.missionId}/report`, {
+        outcome: draft.outcome,
+        checks: draft.checks,
+        gps: draft.gps,
+        photoIds,
+        photoCaptions: draft.photoCaptions || [],
+        notes: draft.notes,
+        ...(fieldMetadata || {}),
+      }, { 'idempotency-key': draft.idempotencyKey });
       await clearMissionDraft(user.id, draft.missionId);
       setDraftPending(false);
       setOfflinePhotos([]);
@@ -269,7 +284,7 @@ export default function PilotApp() {
     </header>
     <div id="accueil" className={user?.role === 'CLIENT' || !user ? 'mx-auto max-w-3xl space-y-0 px-0 sm:px-4' : 'mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6'}>
     {message && (user?.role === 'CLIENT' || !user) && <p role="status" className="fixed left-1/2 top-16 z-50 w-[min(92vw,44rem)] -translate-x-1/2 rounded-xl border border-amber-600 bg-slate-900 p-3 text-sm shadow-xl">{message}</p>}
-    {(user?.role === 'CLIENT' || !user) && <LiveClientExperience listings={listings} bookings={bookings} viewings={viewings} applications={applications} tickets={tickets} notifications={notifications} filters={filters} onFilters={setFilters} favorites={favoriteIds} authenticated={user?.role === 'CLIENT'} onLogin={() => document.getElementById('connexion')?.scrollIntoView({ behavior: 'smooth' })} onFavorite={(id, saved) => void action(() => api(`/me/favorites/${id}`, { method: saved ? 'DELETE' : 'POST' }), saved ? 'Favori retiré.' : 'Favori enregistré.')} onAvailability={async (id) => (await api<{ unavailable: Array<{check_in:string;check_out:string;source:string}> }>(`/listings/${id}/availability`)).unavailable} onBooking={(listing, start, end, people) => { const slot = `${listing.id}:${start}:${end}:${people}`; bookingKeys.current[slot] ||= crypto.randomUUID(); void action(() => post('/bookings', { listingId: listing.id, checkIn: start, checkOut: end, occupants: people, acceptedTerms: true }, { 'idempotency-key': bookingKeys.current[slot] }), 'Demande enregistrée.'); }} onViewing={(listing, slot) => void action(() => post('/viewings', { listingId: listing.id, slots: [new Date(slot).toISOString()] }), 'Visite demandée.')} onApplication={(listing, message) => void action(() => post('/lease-applications', { listingId: listing.id, message }), 'Candidature reçue.')} onDeclarePayment={(id, reference) => void action(() => post(`/bookings/${id}/declare-payment`, { reference }), 'Paiement déclaré.')} onCancelBooking={(id) => void action(() => post(`/bookings/${id}/cancel`), 'Réservation annulée.')} onReportMedia={(id, message) => void action(() => post(`/listings/${id}/report-media`, { message }), 'Média signalé.')} onTicket={(message) => void action(() => post('/tickets', { category: 'ASSISTANCE', message }), 'Ticket créé.')} onCloseAccount={async () => { if (!window.confirm('Fermer votre compte ? Vos dossiers liés à un litige ouvert seront conservés avec accès restreint.')) return; try { await post('/me/close'); setUser(null); setFavoriteIds([]); setBookings([]); setApplications([]); setViewings([]); await refresh(null); setMessage('Compte fermé.'); } catch (error) { setMessage(String(error)); } }} />}
+    {(user?.role === 'CLIENT' || !user) && <LiveClientExperience listings={listings} bookings={bookings} viewings={viewings} applications={applications} tickets={tickets} notifications={notifications} filters={filters} onFilters={setFilters} favorites={favoriteIds} authenticated={user?.role === 'CLIENT'} userEmail={user?.email || undefined} ads={ads} onAdImpression={(id) => { void post(`/ads/${id}/impression`).catch(() => {}); }} onAdClick={(id) => { void post(`/ads/${id}/click`).catch(() => {}); }} onLogin={() => document.getElementById('connexion')?.scrollIntoView({ behavior: 'smooth' })} onFavorite={(id, saved) => void action(() => api(`/me/favorites/${id}`, { method: saved ? 'DELETE' : 'POST' }), saved ? 'Favori retiré.' : 'Favori enregistré.')} onAvailability={async (id) => (await api<{ unavailable: Array<{check_in:string;check_out:string;source:string}> }>(`/listings/${id}/availability`)).unavailable} onBooking={(listing, start, end, people) => { const slot = `${listing.id}:${start}:${end}:${people}`; bookingKeys.current[slot] ||= crypto.randomUUID(); void action(() => post('/bookings', { listingId: listing.id, checkIn: start, checkOut: end, occupants: people, acceptedTerms: true }, { 'idempotency-key': bookingKeys.current[slot] }), 'Demande enregistrée.'); }} onViewing={(listing, slot) => void action(() => post('/viewings', { listingId: listing.id, slots: [new Date(slot).toISOString()] }), 'Visite demandée.')} onApplication={(listing, message) => void action(() => post('/lease-applications', { listingId: listing.id, message }), 'Candidature reçue.')} onDeclarePayment={(id, reference, paymentMethod, diasporaCurrency, diasporaAmount) => void action(() => post(`/bookings/${id}/declare-payment`, { reference, paymentMethod, diasporaCurrency, diasporaAmount }), 'Paiement déclaré.')} onCancelBooking={(id) => void action(() => post(`/bookings/${id}/cancel`), 'Réservation annulée.')} onReportMedia={(id, message) => void action(() => post(`/listings/${id}/report-media`, { message }), 'Média signalé.')} onTicket={(message) => void action(() => post('/tickets', { category: 'ASSISTANCE', message }), 'Ticket créé.')} onCloseAccount={async () => { if (!window.confirm('Fermer votre compte ? Vos dossiers liés à un litige ouvert seront conservés avec accès restreint.')) return; try { await post('/me/close'); setUser(null); setFavoriteIds([]); setBookings([]); setApplications([]); setViewings([]); await refresh(null); setMessage('Compte fermé.'); } catch (error) { setMessage(String(error)); } }} />}
     {message && user && user.role !== 'CLIENT' && <p role="status" className="rounded bg-amber-900/50 p-3 text-sm">{message}</p>}
 
     {!user && <div className="mx-auto max-w-xl px-4 pb-28 pt-6"><section id="connexion" className="space-y-4 rounded-3xl border border-slate-800 bg-slate-900 p-6 sm:p-8">
@@ -299,7 +314,7 @@ export default function PilotApp() {
       </div>}
     </section></div>}
 
-    {user?.role === 'PARTNER' && <LivePartnerDashboard listings={listings} bookings={bookings} invoices={invoices} counts={{ blocks: blocks.length, viewings: viewings.length, applications: applications.length, refunds: bookings.filter((booking) => booking.refund_status === 'PENDING_PARTNER').length, tickets: tickets.filter((ticket) => ticket.status === 'OPEN').length, notifications: notifications.length }} onAccept={(id) => action(() => post(`/bookings/${id}/accept`), 'Dates bloquées 30 minutes.')} onConfirm={(id) => action(() => post(`/bookings/${id}/confirm`), 'Réservation confirmée.')} onCancel={(id) => { if (window.confirm('Annuler cette réservation ?')) void action(() => post(`/bookings/${id}/cancel`), 'Réservation annulée.'); }} onNewListing={() => { setPartnerListingOpen(true); window.setTimeout(() => document.getElementById('nouveau-logement')?.scrollIntoView({ behavior: 'smooth' }), 0); }} onOpenListing={(id) => { setPartnerListingOpen(true); window.setTimeout(() => { void loadDocuments(id); document.getElementById(`partner-listing-${id}`)?.scrollIntoView({ behavior: 'smooth' }); }, 0); }} onOpenSection={(id) => { setPartnerListingOpen(true); window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' }), 0); }} />}
+    {user?.role === 'PARTNER' && <LivePartnerDashboard listings={listings} bookings={bookings} invoices={invoices} counts={{ blocks: blocks.length, viewings: viewings.length, applications: applications.length, refunds: bookings.filter((booking) => booking.refund_status === 'PENDING_PARTNER').length, tickets: tickets.filter((ticket) => ticket.status === 'OPEN').length, notifications: notifications.length }} userEmail={user.email || undefined} onBoostListing={(id) => { void action(() => post(`/partner/listings/${id}/boost`, { days: 7 }), 'Annonce mise en avant pendant 7 jours.'); }} onCreateAd={(ad) => { void action(() => post('/ads', ad), 'Campagne publicitaire créée et activée.'); }} onAccept={(id) => action(() => post(`/bookings/${id}/accept`), 'Dates bloquées 30 minutes.')} onConfirm={(id) => action(() => post(`/bookings/${id}/confirm`), 'Réservation confirmée.')} onCancel={(id) => { if (window.confirm('Annuler cette réservation ?')) void action(() => post(`/bookings/${id}/cancel`), 'Réservation annulée.'); }} onNewListing={() => { setPartnerListingOpen(true); window.setTimeout(() => document.getElementById('nouveau-logement')?.scrollIntoView({ behavior: 'smooth' }), 0); }} onOpenListing={(id) => { setPartnerListingOpen(true); window.setTimeout(() => { void loadDocuments(id); document.getElementById(`partner-listing-${id}`)?.scrollIntoView({ behavior: 'smooth' }); }, 0); }} onOpenSection={(id) => { setPartnerListingOpen(true); window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' }), 0); }} />}
     {user?.role === 'PARTNER' && <><button type="button" className="text-xs font-semibold text-amber-400 underline" onClick={() => setPartnerListingOpen((open) => !open)}>{partnerListingOpen ? 'Fermer la gestion des logements' : 'Gérer les pièces, vidéos et disponibilités'}</button>{partnerListingOpen && <><section id="nouveau-logement" className="space-y-3"><h2 className="text-xl font-bold">Proposer un logement</h2>
       <div className="flex flex-wrap gap-2"><input placeholder="Titre" className="rounded bg-slate-800 p-2" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} /><input placeholder="Commune" className="rounded bg-slate-800 p-2" value={commune} onChange={(e) => setCommune(e.target.value)} /><select className="rounded bg-slate-800 p-2" value={rentalMode} onChange={(e) => setRentalMode(e.target.value as typeof rentalMode)}><option value="SHORT_STAY">Courte durée</option><option value="LONG_TERM">Longue durée</option></select><input type="number" placeholder="Prix CDF" className="rounded bg-slate-800 p-2" value={price} onChange={(e) => setPrice(e.target.value)} /><input type="number" placeholder="Charges CDF" className="rounded bg-slate-800 p-2" value={chargesCdf} onChange={(e) => setChargesCdf(e.target.value)} />{rentalMode === 'LONG_TERM' && <label className="text-sm">Dépôt (mois, maximum 3) <input type="number" min="0" max="3" className="w-20 rounded bg-slate-800 p-2" value={securityDepositMonths} onChange={(e) => setSecurityDepositMonths(Number(e.target.value))} /></label>}<label className="flex items-center gap-2"><input type="checkbox" checked={furnished} onChange={(e) => setFurnished(e.target.checked)} />Meublé</label><textarea placeholder="Description" className="rounded bg-slate-800 p-2" value={description} onChange={(e) => setDescription(e.target.value)} /><textarea placeholder="Conditions" className="rounded bg-slate-800 p-2" value={conditions} onChange={(e) => setConditions(e.target.value)} /><button className="rounded bg-emerald-600 px-3" onClick={() => action(() => post('/listings', { title: newTitle, commune, rentalMode, priceCdf: Number(price), chargesCdf: Number(chargesCdf || 0), securityDepositMonths: rentalMode === 'LONG_TERM' ? securityDepositMonths : undefined, furnished, description, conditions }), 'Logement soumis.')}>Soumettre</button></div>
     </section><section id="mes-logements" className="space-y-3"><h2 className="text-xl font-bold">Mes logements et pièces</h2>{listings.length === 0 && <p className="text-sm text-slate-400">Aucun logement déposé. Commencez par le formulaire ci-dessus.</p>}{listings.map((listing) => <article id={`partner-listing-${listing.id}`} key={listing.id} className="rounded bg-slate-900 p-4 space-y-2"><p>{listing.title} · {listing.status}</p><button className="text-emerald-400 text-sm" onClick={() => loadDocuments(listing.id)}>Voir les pièces</button>{selectedListing === listing.id && <div className="space-y-2"><select className="rounded bg-slate-800 p-2" value={documentKind} onChange={(e) => setDocumentKind(e.target.value)}><option value="TITLE">Titre</option><option value="MANDATE">Mandat</option><option value="MEDIA_CONSENT">Consentement média</option><option value="IDENTITY">Identité</option></select><input type="file" accept="application/pdf,image/png,image/jpeg" onChange={(e) => { const file=e.target.files?.[0]; if(file) upload(listing.id,file,documentKind); }} />{(documents[listing.id] || []).map((doc) => <p key={doc.id} className="text-xs">{doc.kind} · {doc.approved_at ? 'approuvé' : 'en attente'} · <a className="underline" href={`/v1/documents/${doc.id}`} target="_blank">ouvrir</a></p>)}</div>}</article>)}</section></>}</>}
@@ -315,7 +330,7 @@ export default function PilotApp() {
       outcome={outcome} notes={notes} draftPending={draftPending} documents={documents}
       onSelect={(mission) => { void selectFieldMission(mission); }} onChecks={setChecks} onGps={setGps}
       onGpsError={setMessage} onPhotos={setOfflinePhotos} onOutcome={setOutcome} onNotes={setNotes}
-      onSubmit={(mission) => { void submitFieldMission(mission); }}
+      onSubmit={(mission, fieldMetadata) => { void submitFieldMission(mission, fieldMetadata); }}
       onLoadDocuments={(listingId) => { void loadDocuments(listingId); }}
       ticketCount={tickets.filter((ticket) => ticket.status === 'OPEN').length} notificationCount={notifications.length}
       onOpenSection={(id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })}
@@ -325,6 +340,9 @@ export default function PilotApp() {
     {user?.role === 'OPERATIONS_ADMIN' && <LiveAdminDashboard
       listings={listings} missions={missions} users={users} tickets={tickets}
       counts={{ bookings: bookings.length, viewings: viewings.length, applications: applications.length, invoices: invoices.length, notifications: notifications.length }}
+      ads={ads}
+      onCreateAd={(ad) => { void action(() => post('/ads', ad), 'Campagne publicitaire créée.'); }}
+      onToggleAdStatus={(id, status) => { void action(() => post(`/ads/${id}/status`, { status }), 'Statut publicité mis à jour.'); }}
       onOpenSection={(id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })}
       onPublish={(id) => { void action(() => post(`/admin/listings/${id}/approve`), 'Logement publié pour 90 jours.'); }}
       onSuspend={(id) => { if (window.confirm('Suspendre cette annonce ?')) void action(() => post(`/admin/listings/${id}/suspend`), 'Logement suspendu.'); }}

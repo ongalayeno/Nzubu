@@ -1,10 +1,29 @@
 import { useEffect, useRef } from 'react';
 
-export function ListingVideo({ listingId, immersive = false, active = false }: { listingId: string; immersive?: boolean; active?: boolean }) {
+export function ListingVideo({
+  listingId,
+  immersive = false,
+  active = false,
+  muted,
+  fallbackVideoUrl,
+  fallbackPosterUrl,
+}: {
+  listingId: string;
+  immersive?: boolean;
+  active?: boolean;
+  muted?: boolean;
+  fallbackVideoUrl?: string;
+  fallbackPosterUrl?: string;
+}) {
   const ref = useRef<HTMLVideoElement>(null);
+  const externalFallback = fallbackVideoUrl && /^https?:\/\//i.test(fallbackVideoUrl) ? fallbackVideoUrl : undefined;
   useEffect(() => {
     const video = ref.current;
     if (!video) return;
+    if (externalFallback) {
+      video.src = externalFallback;
+      return;
+    }
     const source = `/v1/listings/${listingId}/hls/master.m3u8`;
     let cancelled = false;
     let dispose: (() => void) | undefined;
@@ -23,11 +42,22 @@ export function ListingVideo({ listingId, immersive = false, active = false }: {
       });
     }
     return () => { cancelled = true; dispose?.(); };
-  }, [listingId]);
+  }, [listingId, externalFallback]);
   useEffect(() => {
     if (!immersive || !ref.current) return;
     if (active) void ref.current.play().catch(() => {});
     else ref.current.pause();
   }, [active, immersive, listingId]);
-  return <video ref={ref} controls={!immersive} muted={immersive} loop={immersive} playsInline preload="metadata" poster={`/v1/listings/${listingId}/poster`} className={immersive ? 'absolute inset-0 h-full w-full object-cover bg-slate-900' : 'w-full aspect-[9/12] object-contain rounded bg-black'} />;
+  return (
+    <video
+      ref={ref}
+      controls={!immersive}
+      muted={muted ?? immersive}
+      loop={immersive}
+      playsInline
+      preload="metadata"
+      poster={fallbackPosterUrl || `/v1/listings/${listingId}/poster`}
+      className={immersive ? 'absolute inset-0 h-full w-full object-cover bg-slate-900' : 'w-full aspect-[9/12] object-contain rounded bg-black'}
+    />
+  );
 }

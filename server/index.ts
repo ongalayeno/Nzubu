@@ -227,14 +227,14 @@ app.get('/v1/listings', wrap(async (req, res) => {
   const parsed = z.object({ commune: z.string().max(80).optional(), mode: z.enum(['SHORT_STAY','LONG_TERM']).optional(), furnished: z.enum(['true','false']).optional(), maxPriceCdf: z.coerce.number().int().positive().optional() }).safeParse(req.query);
   if (!parsed.success) { res.status(400).json({ error: 'INVALID_FILTERS' }); return; }
   const { commune, mode, furnished, maxPriceCdf } = parsed.data;
-  const result = await pool.query(`SELECT l.id,l.title,l.commune,l.rental_mode,l.price_cdf,l.data,l.verified_until, v.status AS video_status,
+  const result = await pool.query(`SELECT l.id,l.title,l.commune,l.rental_mode,l.price_cdf,l.data,l.verified_until,l.boosted_until, v.status AS video_status,
     m.submitted_at AS verified_at, m.agent_id AS verified_by
     FROM listings l LEFT JOIN listing_videos v ON v.listing_id=l.id LEFT JOIN LATERAL (SELECT submitted_at,agent_id FROM missions WHERE listing_id=l.id AND status='APPROVED' ORDER BY submitted_at DESC LIMIT 1) m ON true
     WHERE l.status='PUBLISHED' AND l.verified_until>=CURRENT_DATE
       AND ($1::text IS NULL OR lower(l.commune)=lower($1)) AND ($2::text IS NULL OR l.rental_mode=$2)
       AND ($3::boolean IS NULL OR (l.data->>'furnished')::boolean=$3)
       AND ($4::bigint IS NULL OR l.price_cdf<=$4)
-    ORDER BY l.created_at DESC LIMIT 100`, [commune || null, mode || null, furnished || null, maxPriceCdf || null]);
+    ORDER BY (l.boosted_until IS NOT NULL AND l.boosted_until > now()) DESC, l.created_at DESC LIMIT 100`, [commune || null, mode || null, furnished || null, maxPriceCdf || null]);
   res.json({ listings: result.rows });
 }));
 
@@ -552,6 +552,20 @@ app.post('/v1/missions/:id/report', requireRole('FIELD_AGENT'), wrap(async (req,
     photoIds: z.array(z.uuid()).max(10),
     photoCaptions: z.array(z.string().max(100)).max(10).optional(),
     notes: z.string().max(5000),
+    snelMeterNumber: z.string().max(80).optional(),
+    snelMeterIndex: z.string().max(80).optional(),
+    regidesoPressureBar: z.number().min(0).max(20).optional(),
+    outageTracker: z.object({ snelOutage: z.boolean(), regidesoOutage: z.boolean(), reportedAt: z.string().optional() }).optional(),
+    agentSignature: z.object({
+      agentSignatureDataUrl: z.string().max(200000),
+      agentSignedAt: z.string(),
+      witnessName: z.string().max(120).optional(),
+      witnessRole: z.enum(['OWNER', 'MANDATAIRE', 'SECURITY_GUARD', 'PROPERTY_MANAGER']).optional(),
+      witnessSignatureDataUrl: z.string().max(200000).optional(),
+      witnessSignedAt: z.string().optional(),
+    }).optional(),
+    sha256Seal: z.string().max(128).optional(),
+    durationMinutes: z.number().int().min(1).max(600).optional(),
   }).safeParse(req.body);
   if (!id.success || !parsed.success || !reportKey || reportKey.length > 100) { res.status(400).json({ error: 'INVALID_REPORT' }); return; }
   if (parsed.data.outcome === 'PASS' && (!Object.values(parsed.data.checks).every(Boolean) || parsed.data.photoIds.length === 0)) {
@@ -569,7 +583,18 @@ app.post('/v1/missions/:id/report', requireRole('FIELD_AGENT'), wrap(async (req,
     if (count !== parsed.data.photoIds.length) { res.status(400).json({ error: 'PHOTO_MISMATCH' }); return; }
   }
   const submitted = await transaction(async (db) => {
-    const updated = await db.query(`UPDATE missions SET status='REPORT_SUBMITTED',outcome=$2,report=$3,report_key=$4,submitted_at=now() WHERE id=$1 AND status IN ('ASSIGNED','IN_PROGRESS')`, [id.data, parsed.data.outcome, parsed.data, reportKey]);
+    const updated = await db.query(
+      `UPDATE missions SET status='REPORT_SUBMITTED',outcome=$2,report=$3,report_key=$4,submitted_at=now(),
+        snel_meter_number=$5,snel_meter_index=$6,regideso_pressure_bar=$7,outage_tracker=$8,agent_signature=$9,sha256_seal=$10,duration_minutes=$11
+        WHERE id=$1 AND status IN ('ASSIGNED','IN_PROGRESS')`,
+      [
+        id.data, parsed.data.outcome, parsed.data, reportKey,
+        parsed.data.snelMeterNumber || null, parsed.data.snelMeterIndex || null,
+        parsed.data.regidesoPressureBar ?? null, parsed.data.outageTracker ? JSON.stringify(parsed.data.outageTracker) : null,
+        parsed.data.agentSignature ? JSON.stringify(parsed.data.agentSignature) : null,
+        parsed.data.sha256Seal || null, parsed.data.durationMinutes ?? null,
+      ]
+    );
     if (!updated.rowCount) return false;
     await db.query("UPDATE listings SET status=$2,updated_at=now() WHERE id=$1", [mission.listing_id, parsed.data.outcome === 'PASS' ? 'PENDING_APPROVAL' : parsed.data.outcome === 'SAFETY_CONCERN' ? 'SUSPENDED' : 'PENDING_INSPECTION']);
     if (parsed.data.outcome === 'SAFETY_CONCERN') {
@@ -960,11 +985,16 @@ app.post('/v1/bookings/:id/accept', requireRole('PARTNER'), wrap(async (req, res
 
 app.post('/v1/bookings/:id/declare-payment', requireRole('CLIENT'), wrap(async (req, res) => {
   const id = z.uuid().safeParse(req.params.id);
-  const parsed = z.object({ reference: z.string().min(3).max(100) }).safeParse(req.body);
+  const parsed = z.object({
+    reference: z.string().min(3).max(100),
+    paymentMethod: z.enum(['VODACOM_MPESA', 'AIRTEL_MONEY', 'ORANGE_MONEY', 'CASH_AT_CHECKIN', 'MAISHAPAY_CARD']).optional(),
+    diasporaCurrency: z.string().max(10).optional(),
+    diasporaAmount: z.number().positive().optional(),
+  }).safeParse(req.body);
   if (!id.success || !parsed.success) { res.status(400).json({ error: 'INVALID_PAYMENT_REFERENCE' }); return; }
-  const booking = (await pool.query(`UPDATE bookings SET status='PAYMENT_DECLARED',payment_reference=$3
+  const booking = (await pool.query(`UPDATE bookings SET status='PAYMENT_DECLARED',payment_reference=$3,payment_method=COALESCE($4,payment_method),diaspora_currency=$5,diaspora_amount=$6
     WHERE id=$1 AND client_id=$2 AND status='HOST_ACCEPTED_TERMS' AND hold_expires_at>now() RETURNING *`,
-    [id.data, req.actor!.id, parsed.data.reference])).rows[0];
+    [id.data, req.actor!.id, parsed.data.reference, parsed.data.paymentMethod || null, parsed.data.diasporaCurrency || null, parsed.data.diasporaAmount ?? null])).rows[0];
   if (!booking) { res.status(409).json({ error: 'HOLD_EXPIRED' }); return; }
   res.json({ booking });
 }));
@@ -1039,6 +1069,135 @@ app.post('/v1/admin/tickets/:id/resolve', requireRole('OPERATIONS_ADMIN'), wrap(
 
 app.get('/v1/notifications', requireRole('CLIENT','PARTNER','FIELD_AGENT','OPERATIONS_ADMIN'), wrap(async (req, res) => {
   res.json({ notifications: (await pool.query('SELECT id,subject,body,sent_at,created_at FROM notifications WHERE user_id=$1 ORDER BY created_at DESC LIMIT 50', [req.actor!.id])).rows });
+}));
+
+app.get('/v1/ads', wrap(async (req, res) => {
+  const actor = req.actor;
+  if (actor?.role === 'OPERATIONS_ADMIN') {
+    const rows = (await pool.query('SELECT * FROM sponsored_ads ORDER BY created_at DESC LIMIT 200')).rows;
+    res.json({ ads: rows });
+    return;
+  }
+  if (actor?.role === 'PARTNER') {
+    const rows = (await pool.query("SELECT * FROM sponsored_ads WHERE advertiser_id=$1 OR (status='ACTIVE' AND expires_at>now()) ORDER BY created_at DESC LIMIT 200", [actor.id])).rows;
+    res.json({ ads: rows });
+    return;
+  }
+  const rows = (await pool.query("SELECT * FROM sponsored_ads WHERE status='ACTIVE' AND expires_at>now() ORDER BY created_at DESC LIMIT 100")).rows;
+  res.json({ ads: rows });
+}));
+
+app.post('/v1/ads', requireRole('PARTNER','OPERATIONS_ADMIN'), wrap(async (req, res) => {
+  const parsed = z.object({
+    title: z.string().min(3).max(160),
+    advertiserName: z.string().min(2).max(120),
+    advertiserPhone: z.string().min(5).max(40),
+    category: z.enum(['REAL_ESTATE_BOOST','SOLAR_ENERGY','SERVICES_DEMENAGEMENT','DECORATION_FURNITURE','SECURITY_AGENCY','LOCAL_BUSINESS']),
+    format: z.enum(['VERTICAL_VIDEO_FEED','CATALOG_BANNER']),
+    mediaUrl: z.string().min(5).max(1000),
+    thumbnailUrl: z.string().min(5).max(1000),
+    tagline: z.string().min(3).max(200),
+    description: z.string().min(3).max(2000),
+    ctaText: z.string().min(2).max(80),
+    ctaActionType: z.enum(['WHATSAPP','PHONE','URL']),
+    ctaTarget: z.string().min(3).max(500),
+    badgeLabel: z.string().max(40).default('Sponsorisé'),
+    pricePaidCdf: z.number().int().min(0),
+    durationDays: z.number().int().min(1).max(365),
+    featuredListingId: z.string().max(100).optional(),
+  }).safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: 'INVALID_AD' }); return; }
+  const id = `ad-${randomUUID()}`;
+  const d = parsed.data;
+  const row = (await pool.query(
+    `INSERT INTO sponsored_ads(id,advertiser_id,featured_listing_id,title,advertiser_name,advertiser_phone,category,format,media_url,thumbnail_url,tagline,description,cta_text,cta_action_type,cta_target,badge_label,price_paid_cdf,payment_provider,duration_days,starts_at,expires_at,status)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,'MAISHAPAY',$18,now(),now()+($18::int * interval '1 day'),'ACTIVE') RETURNING *`,
+    [id, req.actor!.id, d.featuredListingId || null, d.title, d.advertiserName, d.advertiserPhone, d.category, d.format, d.mediaUrl, d.thumbnailUrl, d.tagline, d.description, d.ctaText, d.ctaActionType, d.ctaTarget, d.badgeLabel || 'Sponsorisé', d.pricePaidCdf, d.durationDays]
+  )).rows[0];
+  await pool.query('INSERT INTO audit_log(actor_id,action,entity_id) VALUES($1,$2,$3)', [req.actor!.id, 'SPONSORED_AD_CREATED', id]);
+  res.status(201).json({ ad: row });
+}));
+
+app.post('/v1/ads/:id/status', requireRole('PARTNER','OPERATIONS_ADMIN'), wrap(async (req, res) => {
+  const parsed = z.object({ status: z.enum(['ACTIVE','PAUSED','EXPIRED']) }).safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: 'INVALID_STATUS' }); return; }
+  const adId = String(req.params.id || '');
+  const row = req.actor!.role === 'OPERATIONS_ADMIN'
+    ? (await pool.query('UPDATE sponsored_ads SET status=$2 WHERE id=$1 RETURNING *', [adId, parsed.data.status])).rows[0]
+    : (await pool.query('UPDATE sponsored_ads SET status=$3 WHERE id=$1 AND advertiser_id=$2 RETURNING *', [adId, req.actor!.id, parsed.data.status])).rows[0];
+  if (!row) { res.status(404).json({ error: 'AD_NOT_FOUND' }); return; }
+  res.json({ ad: row });
+}));
+
+app.post('/v1/ads/:id/impression', wrap(async (req, res) => {
+  await pool.query('UPDATE sponsored_ads SET impressions_count=impressions_count+1 WHERE id=$1', [String(req.params.id || '')]);
+  res.json({ ok: true });
+}));
+
+app.post('/v1/ads/:id/click', wrap(async (req, res) => {
+  await pool.query('UPDATE sponsored_ads SET clicks_count=clicks_count+1 WHERE id=$1', [String(req.params.id || '')]);
+  res.json({ ok: true });
+}));
+
+app.get('/v1/listings/:id/messages', requireRole('CLIENT','PARTNER','FIELD_AGENT','OPERATIONS_ADMIN'), wrap(async (req, res) => {
+  const listingId = String(req.params.id || '');
+  const rows = (await pool.query('SELECT * FROM chat_messages WHERE listing_id=$1 ORDER BY created_at ASC LIMIT 200', [listingId])).rows;
+  res.json({ messages: rows });
+}));
+
+app.post('/v1/listings/:id/messages', requireRole('CLIENT','PARTNER','FIELD_AGENT','OPERATIONS_ADMIN'), wrap(async (req, res) => {
+  const listingId = String(req.params.id || '');
+  const parsed = z.object({ body: z.string().min(1).max(2000), senderName: z.string().max(120).optional() }).safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: 'INVALID_MESSAGE' }); return; }
+  const listing = (await pool.query('SELECT id FROM listings WHERE id=$1', [listingId])).rows[0];
+  if (!listing) { res.status(404).json({ error: 'LISTING_NOT_FOUND' }); return; }
+  const senderName = parsed.data.senderName || req.actor!.email || req.actor!.phone || req.actor!.role;
+  const row = (await pool.query(
+    'INSERT INTO chat_messages(listing_id,sender_id,sender_role,sender_name,body) VALUES($1,$2,$3,$4,$5) RETURNING *',
+    [listingId, req.actor!.id, req.actor!.role, senderName, parsed.data.body.trim()]
+  )).rows[0];
+  res.status(201).json({ message: row });
+}));
+
+app.get('/v1/inventories', requireRole('PARTNER','FIELD_AGENT','OPERATIONS_ADMIN'), wrap(async (req, res) => {
+  const rows = req.actor!.role === 'PARTNER'
+    ? (await pool.query('SELECT i.* FROM property_inventories i JOIN listings l ON l.id=i.listing_id WHERE l.partner_id=$1 ORDER BY i.created_at DESC LIMIT 100', [req.actor!.id])).rows
+    : (await pool.query('SELECT * FROM property_inventories ORDER BY created_at DESC LIMIT 200')).rows;
+  res.json({ inventories: rows });
+}));
+
+app.post('/v1/inventories', requireRole('PARTNER','FIELD_AGENT','OPERATIONS_ADMIN'), wrap(async (req, res) => {
+  const parsed = z.object({
+    listingId: z.string().min(1).max(100),
+    inventoryType: z.enum(['ENTRY','EXIT']),
+    tenantName: z.string().min(1).max(150),
+    snelIndex: z.string().max(80).optional(),
+    regidesoPressure: z.string().max(80).optional(),
+    items: z.array(z.any()),
+    notes: z.string().max(3000).optional(),
+    sha256Seal: z.string().max(128).optional(),
+  }).safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: 'INVALID_INVENTORY' }); return; }
+  const d = parsed.data;
+  const row = (await pool.query(
+    `INSERT INTO property_inventories(listing_id,created_by,inventory_type,tenant_name,snel_index,regideso_pressure,items,notes,sha256_seal)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+    [d.listingId, req.actor!.id, d.inventoryType, d.tenantName, d.snelIndex || null, d.regidesoPressure || null, JSON.stringify(d.items), d.notes || null, d.sha256Seal || null]
+  )).rows[0];
+  await pool.query('INSERT INTO audit_log(actor_id,action,entity_id) VALUES($1,$2,$3)', [req.actor!.id, 'INVENTORY_CREATED', row.id]);
+  res.status(201).json({ inventory: row });
+}));
+
+app.post('/v1/partner/listings/:id/boost', requireRole('PARTNER','OPERATIONS_ADMIN'), wrap(async (req, res) => {
+  const listingId = String(req.params.id || '');
+  const parsed = z.object({ days: z.number().int().min(1).max(90).default(7) }).safeParse(req.body || {});
+  const days = parsed.success ? parsed.data.days : 7;
+  const row = req.actor!.role === 'OPERATIONS_ADMIN'
+    ? (await pool.query("UPDATE listings SET boosted_until=now()+($2::int * interval '1 day'),updated_at=now() WHERE id=$1 RETURNING *", [listingId, days])).rows[0]
+    : (await pool.query("UPDATE listings SET boosted_until=now()+($3::int * interval '1 day'),updated_at=now() WHERE id=$1 AND partner_id=$2 RETURNING *", [listingId, req.actor!.id, days])).rows[0];
+  if (!row) { res.status(404).json({ error: 'LISTING_NOT_FOUND' }); return; }
+  await pool.query('INSERT INTO audit_log(actor_id,action,entity_id) VALUES($1,$2,$3)', [req.actor!.id, 'LISTING_BOOSTED', listingId]);
+  res.json({ listing: row });
 }));
 
 app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {

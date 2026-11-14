@@ -13,7 +13,8 @@
     "api": "tsx server/index.ts",
     "dev:full": "concurrently \"npm run dev\" \"npm run api\"",
     "test:integration": "tsx --test server/integration.test.ts server/auth.integration.test.ts",
-    "test:load": "node scripts/smoke-load.mjs"
+    "test:load": "node scripts/smoke-load.mjs",
+    "seed": "tsx scripts/seed-demo.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1161.0",

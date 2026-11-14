@@ -64,6 +64,31 @@ export const SecureChatModal: React.FC<SecureChatModalProps> = ({
   const [showWarning, setShowWarning] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
+  const isServerMode = import.meta.env.VITE_API_MODE === 'server';
+
+  useEffect(() => {
+    if (!isServerMode) return;
+    fetch(`/v1/listings/${listing.id}/messages`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.messages?.length) {
+          setMessages(
+            data.messages.map((m: any) => ({
+              id: m.id,
+              listingId: m.listing_id,
+              listingTitle: listing.title,
+              senderId: m.sender_id,
+              senderName: m.sender_name,
+              senderRole: m.sender_role === 'PARTNER' ? 'HOST' : m.sender_role === 'FIELD_AGENT' ? 'AGENT' : 'CLIENT',
+              text: m.body,
+              timestamp: new Date(m.created_at).toLocaleTimeString('fr-CD', { hour: '2-digit', minute: '2-digit' }),
+            }))
+          );
+        }
+      })
+      .catch(() => {});
+  }, [isServerMode, listing.id, listing.title]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -102,6 +127,10 @@ export const SecureChatModal: React.FC<SecureChatModalProps> = ({
       setShowWarning(null);
     }
 
+    const sanitizedText = isBypass
+      ? inputMessage.replace(/(?:\+?243|0)[0-9\s.-]{8,12}/g, '[NUMÉRO MASQUÉ PAR NZUBU]')
+      : inputMessage;
+
     const newMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
       listingId: listing.id,
@@ -109,9 +138,7 @@ export const SecureChatModal: React.FC<SecureChatModalProps> = ({
       senderId: 'user-current',
       senderName: currentUserName,
       senderRole: currentUserRole,
-      text: isBypass 
-        ? inputMessage.replace(/(?:\+?243|0)[0-9\s.-]{8,12}/g, '[NUMÉRO MASQUÉ PAR NZUBU]')
-        : inputMessage,
+      text: sanitizedText,
       timestamp: new Date().toLocaleTimeString('fr-CD', { hour: '2-digit', minute: '2-digit' }),
       hasBypassWarning: isBypass,
     };
@@ -119,7 +146,17 @@ export const SecureChatModal: React.FC<SecureChatModalProps> = ({
     setMessages((prev) => [...prev, newMsg]);
     setInputMessage('');
 
-    // Simulated quick friendly reply from Host after 1.5s
+    if (isServerMode) {
+      void fetch(`/v1/listings/${listing.id}/messages`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: sanitizedText, senderName: currentUserName }),
+      }).catch(() => {});
+      return;
+    }
+
+    // Simulated quick friendly reply from Host after 1.5s (Demo mode only)
     setTimeout(() => {
       const autoReplies = [
         "Merci pour votre message ! L'eau et le groupe de secours ont bien été testés et certifiés par l'agent NZUBU.",
