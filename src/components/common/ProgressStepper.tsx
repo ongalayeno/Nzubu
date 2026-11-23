@@ -44,13 +44,13 @@ export const ProgressStepper: React.FC<ProgressStepperProps> = ({
   const getAccentText = () => {
     switch (accentColor) {
       case 'sky':
-        return 'text-sky-400';
+        return 'text-sky-600 dark:text-sky-400';
       case 'emerald':
-        return 'text-emerald-400';
+        return 'text-emerald-600 dark:text-emerald-400';
       case 'amber':
-        return 'text-amber-400';
+        return 'text-amber-600 dark:text-amber-400';
       default:
-        return 'text-rose-400';
+        return 'text-rose-600 dark:text-rose-400';
     }
   };
 
@@ -71,14 +71,14 @@ export const ProgressStepper: React.FC<ProgressStepperProps> = ({
     <div className={`w-full space-y-2 select-none ${className}`}>
       {/* Top mini summary bar */}
       <div className="flex items-center justify-between text-xs">
-        <span className="font-bold text-slate-300">Progression</span>
+        <span className="font-bold text-slate-700 dark:text-slate-300">Progression</span>
         <span className={`font-mono font-bold ${getAccentText()}`}>
           {progressPercent}% complété ({completedCount}/{steps.length})
         </span>
       </div>
 
       {/* Bar container */}
-      <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+      <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
         <div
           className={`h-full transition-all duration-300 ${getAccentBg()}`}
           style={{ width: `${progressPercent}%` }}
@@ -92,10 +92,10 @@ export const ProgressStepper: React.FC<ProgressStepperProps> = ({
             key={step.id}
             className={`p-2 rounded-xl border text-left transition-all ${
               step.isCompleted
-                ? 'border-emerald-500/30 bg-emerald-500/5'
+                ? 'border-emerald-500/30 bg-emerald-500/10 dark:bg-emerald-500/5'
                 : step.isCurrent
-                ? `${getAccentBorder()} bg-slate-900 ring-1 ring-${accentColor}-500/30`
-                : 'border-slate-800/80 bg-slate-950/60 opacity-60'
+                ? `${getAccentBorder()} bg-white dark:bg-slate-900 ring-1 ring-${accentColor}-500/30 shadow-xs dark:shadow-none`
+                : 'border-slate-200 dark:border-slate-800/80 bg-slate-100/70 dark:bg-slate-950/60 opacity-70 dark:opacity-60'
             }`}
           >
             <div className="flex items-center gap-1.5 mb-1">
@@ -105,7 +105,7 @@ export const ProgressStepper: React.FC<ProgressStepperProps> = ({
                     ? 'bg-emerald-500 text-white'
                     : step.isCurrent
                     ? `${getAccentBg()} text-white`
-                    : 'bg-slate-800 text-slate-400'
+                    : 'bg-slate-300 dark:bg-slate-800 text-slate-700 dark:text-slate-400'
                 }`}
               >
                 {step.isCompleted ? <Check className="w-2.5 h-2.5 stroke-[3]" /> : idx + 1}
@@ -113,17 +113,17 @@ export const ProgressStepper: React.FC<ProgressStepperProps> = ({
               <span
                 className={`text-[11px] font-bold truncate ${
                   step.isCompleted
-                    ? 'text-emerald-300'
+                    ? 'text-emerald-700 dark:text-emerald-300'
                     : step.isCurrent
-                    ? 'text-white'
-                    : 'text-slate-400'
+                    ? 'text-slate-900 dark:text-white'
+                    : 'text-slate-500 dark:text-slate-400'
                 }`}
               >
                 {step.label}
               </span>
             </div>
             {step.subLabel && (
-              <p className="text-[10px] text-slate-400 truncate pl-5">
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate pl-5">
                 {step.subLabel}
               </p>
             )}

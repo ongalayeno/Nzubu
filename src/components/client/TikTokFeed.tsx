@@ -145,10 +145,10 @@ export const TikTokFeed: React.FC<TikTokFeedProps> = ({
 
   if (combinedFeed.length === 0) {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-slate-950 text-white">
-        <Filter className="w-12 h-12 text-slate-600 mb-3" />
-        <h3 className="text-lg font-bold text-white mb-1">Aucun logement trouvé</h3>
-        <p className="text-sm text-slate-400 max-w-xs mb-4">
+      <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white transition-colors">
+        <Filter className="w-12 h-12 text-slate-400 dark:text-slate-600 mb-3" />
+        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Aucun logement trouvé</h3>
+        <p className="text-sm text-slate-600 dark:text-slate-400 max-w-xs mb-4">
           Essayez d'élargir vos filtres (commune ou type de durée) pour découvrir d'autres biens vérifiés à Kinshasa.
         </p>
         <button

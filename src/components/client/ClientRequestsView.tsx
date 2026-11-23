@@ -97,26 +97,26 @@ export const ClientRequestsView: React.FC<ClientRequestsViewProps> = ({
   ];
 
   return (
-    <div className="w-full h-full overflow-y-auto bg-slate-950 text-white p-4 sm:p-6 space-y-6">
+    <div className="w-full h-full overflow-y-auto bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white p-4 sm:p-6 space-y-6 transition-colors">
       <div className="max-w-4xl mx-auto space-y-4">
         {/* Title */}
         <div>
-          <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+          <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
             Mes Demandes & Dossiers Immobiliers
           </h2>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1">
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
             Suivi en temps réel de vos demandes de séjour courte durée et visites de baux résidentiels.
           </p>
         </div>
 
         {/* Tab switcher */}
-        <div className="flex items-center gap-1 p-1 bg-slate-900 border border-slate-800 rounded-xl w-fit">
+        <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl w-fit">
           <button
             onClick={() => setActiveTab('BOOKINGS')}
             className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
               activeTab === 'BOOKINGS'
                 ? 'bg-rose-500 text-white shadow-sm'
-                : 'text-slate-400 hover:text-white'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <Calendar className="w-3.5 h-3.5" />
@@ -128,7 +128,7 @@ export const ClientRequestsView: React.FC<ClientRequestsViewProps> = ({
             className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
               activeTab === 'VIEWINGS'
                 ? 'bg-amber-500 text-slate-950 shadow-sm'
-                : 'text-slate-400 hover:text-white'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <Eye className="w-3.5 h-3.5" />
@@ -139,8 +139,8 @@ export const ClientRequestsView: React.FC<ClientRequestsViewProps> = ({
             onClick={() => setActiveTab('FAVORITES')}
             className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
               activeTab === 'FAVORITES'
-                ? 'bg-slate-700 text-white shadow-sm'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-slate-800 dark:bg-slate-700 text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <Heart className="w-3.5 h-3.5" />
@@ -152,27 +152,27 @@ export const ClientRequestsView: React.FC<ClientRequestsViewProps> = ({
         {activeTab === 'BOOKINGS' && (
           <div className="space-y-3">
             {bookings.length === 0 ? (
-              <div className="p-8 text-center bg-slate-900/50 rounded-2xl border border-slate-800 text-slate-400 text-xs">
+              <div className="p-8 text-center bg-white dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 text-xs">
                 Vous n'avez aucune demande de réservation courte durée en cours.
               </div>
             ) : (
               bookings.map((booking) => (
                 <div
                   key={booking.id}
-                  className="p-4 sm:p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3 shadow-md"
+                  className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3 shadow-sm dark:shadow-md"
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-800 pb-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
                     <div>
                       <span className="text-[10px] font-mono text-slate-500 uppercase">
                         Réf. {booking.id} · {booking.commune}
                       </span>
-                      <h4 className="text-sm font-bold text-white mt-0.5">
+                      <h4 className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">
                         {booking.listingTitle}
                       </h4>
-                      <div className="text-xs text-slate-400 mt-1 flex items-center gap-2">
+                      <div className="text-xs text-slate-600 dark:text-slate-400 mt-1 flex items-center gap-2">
                         <span>Du {booking.checkInDate} au {booking.checkOutDate}</span>
                         <span>·</span>
-                        <span className="font-semibold text-white">{booking.nightsCount} nuits</span>
+                        <span className="font-semibold text-slate-900 dark:text-white">{booking.nightsCount} nuits</span>
                       </div>
                     </div>
 
@@ -200,32 +200,32 @@ export const ClientRequestsView: React.FC<ClientRequestsViewProps> = ({
                   </div>
 
                   {/* Progress Stepper for booking lifecycle */}
-                  <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80">
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/80">
                     <ProgressStepper steps={getBookingSteps(booking)} accentColor="rose" />
                   </div>
 
                   {/* Financial & Hold details */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                    <div className="p-3 rounded-xl bg-slate-800/40 border border-slate-800">
-                      <span className="text-[11px] text-slate-400 block">Prix total du séjour</span>
-                      <span className="text-sm font-bold text-white font-mono mt-0.5">
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
+                      <span className="text-[11px] text-slate-600 dark:text-slate-400 block">Prix total du séjour</span>
+                      <span className="text-sm font-bold text-slate-900 dark:text-white font-mono mt-0.5">
                         {formatCDF(booking.totalPriceCdf)} CDF
                       </span>
                     </div>
 
-                    <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-200">
-                      <span className="text-[11px] text-rose-300 block font-bold">Avance de 20% à l'hôte</span>
+                    <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-rose-800 dark:text-rose-200">
+                      <span className="text-[11px] text-rose-700 dark:text-rose-300 block font-bold">Avance de 20% à l'hôte</span>
                       <span className="text-sm font-bold font-mono mt-0.5">
                         {formatCDF(booking.advanceAmountCdf)} CDF
                       </span>
-                      <span className="text-[10px] block mt-0.5 text-rose-300/70">
+                      <span className="text-[10px] block mt-0.5 text-rose-700/80 dark:text-rose-300/70">
                         Canal : {booking.paymentMethod || 'Mobile Money'}
                       </span>
                     </div>
 
-                    <div className="p-3 rounded-xl bg-slate-800/40 border border-slate-800">
-                      <span className="text-[11px] text-slate-400 block">Solde à payer à l'arrivée (80%)</span>
-                      <span className="text-sm font-bold text-slate-300 font-mono mt-0.5">
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
+                      <span className="text-[11px] text-slate-600 dark:text-slate-400 block">Solde à payer à l'arrivée (80%)</span>
+                      <span className="text-sm font-bold text-slate-800 dark:text-slate-300 font-mono mt-0.5">
                         {formatCDF(booking.balanceDueArrivalCdf)} CDF
                       </span>
                     </div>
@@ -233,13 +233,13 @@ export const ClientRequestsView: React.FC<ClientRequestsViewProps> = ({
 
                   {/* Context actions */}
                   {booking.status === 'HOST_ACCEPTED_TERMS' && (
-                    <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs flex flex-wrap items-center justify-between gap-3">
+                    <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 text-xs flex flex-wrap items-center justify-between gap-3">
                       <div>
-                        <strong className="text-amber-300 block">
+                        <strong className="text-amber-800 dark:text-amber-300 block">
                           Dates temporairement bloquées (30 minutes)
                         </strong>
-                        <p className="text-slate-300 text-[11px] mt-0.5">
-                          Veuillez régler l'avance de 20% ({formatCDF(booking.advanceAmountCdf)} CDF) directement au numéro de l'hôte : <strong className="text-white font-mono">{booking.hostPhone || '+243 81 555 4949'}</strong> (M-Pesa / Airtel Money).
+                        <p className="text-slate-700 dark:text-slate-300 text-[11px] mt-0.5">
+                          Veuillez régler l'avance de 20% ({formatCDF(booking.advanceAmountCdf)} CDF) directement au numéro de l'hôte : <strong className="text-slate-900 dark:text-white font-mono">{booking.hostPhone || '+243 81 555 4949'}</strong> (M-Pesa / Airtel Money).
                         </p>
                       </div>
 
@@ -254,13 +254,13 @@ export const ClientRequestsView: React.FC<ClientRequestsViewProps> = ({
                   )}
 
                   {booking.status === 'CONFIRMED' && (
-                    <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs flex flex-wrap items-center justify-between gap-3">
+                    <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-xs flex flex-wrap items-center justify-between gap-3">
                       <div>
-                        <strong className="text-emerald-300 block">
+                        <strong className="text-emerald-800 dark:text-emerald-300 block">
                           Réservation validée · Instructions d'accueil
                         </strong>
-                        <p className="text-slate-300 text-[11px] mt-0.5">
-                          Référence paiement enregistrée : <span className="font-mono text-emerald-400">{booking.paymentReference}</span>. L'hôte vous attendra pour la remise des clés et le règlement du solde de 80%.
+                        <p className="text-slate-700 dark:text-slate-300 text-[11px] mt-0.5">
+                          Référence paiement enregistrée : <span className="font-mono text-emerald-700 dark:text-emerald-400">{booking.paymentReference}</span>. L'hôte vous attendra pour la remise des clés et le règlement du solde de 80%.
                         </p>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -294,33 +294,33 @@ export const ClientRequestsView: React.FC<ClientRequestsViewProps> = ({
         {activeTab === 'VIEWINGS' && (
           <div className="space-y-3">
             {viewings.length === 0 ? (
-              <div className="p-8 text-center bg-slate-900/50 rounded-2xl border border-slate-800 text-slate-400 text-xs">
+              <div className="p-8 text-center bg-white dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 text-xs">
                 Aucune demande de visite enregistrée.
               </div>
             ) : (
               viewings.map((viewing) => (
                 <div
                   key={viewing.id}
-                  className="p-4 sm:p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3 shadow-md"
+                  className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3 shadow-sm dark:shadow-md"
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-800 pb-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
                     <div>
                       <span className="text-[10px] font-mono text-slate-500 uppercase">
                         Réf. {viewing.id} · {viewing.commune}
                       </span>
-                      <h4 className="text-sm font-bold text-white mt-0.5">
+                      <h4 className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">
                         {viewing.listingTitle}
                       </h4>
-                      <div className="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
-                        <MapPin className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                      <div className="text-xs text-slate-600 dark:text-slate-400 mt-1 flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400 shrink-0" />
                         <span>{viewing.meetingPoint}</span>
                       </div>
                     </div>
 
                     <span className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 ${
                       viewing.status === 'CONFIRMED'
-                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                        : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                        ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30'
+                        : 'bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/30'
                     }`}>
                       {viewing.status === 'CONFIRMED' ? (
                         <>
@@ -337,23 +337,23 @@ export const ClientRequestsView: React.FC<ClientRequestsViewProps> = ({
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                    <div className="p-3 rounded-xl bg-slate-800/40 border border-slate-800">
-                      <span className="text-[11px] text-slate-400 block">Créneaux proposés</span>
-                      <ul className="mt-1 space-y-1 font-mono text-white text-[11px]">
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
+                      <span className="text-[11px] text-slate-600 dark:text-slate-400 block">Créneaux proposés</span>
+                      <ul className="mt-1 space-y-1 font-mono text-slate-900 dark:text-white text-[11px]">
                         {viewing.slots.map((s, idx) => (
-                          <li key={idx} className={viewing.chosenSlot === s ? 'text-amber-400 font-bold' : ''}>
+                          <li key={idx} className={viewing.chosenSlot === s ? 'text-amber-600 dark:text-amber-400 font-bold' : ''}>
                             • {s} {viewing.chosenSlot === s ? '(Confirmé)' : ''}
                           </li>
                         ))}
                       </ul>
                     </div>
 
-                    <div className="p-3 rounded-xl bg-slate-800/40 border border-slate-800">
-                      <span className="text-[11px] text-slate-400 block">Agent NZUBU accompagnateur</span>
-                      <span className="text-sm font-bold text-white mt-0.5 block">
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
+                      <span className="text-[11px] text-slate-600 dark:text-slate-400 block">Agent NZUBU accompagnateur</span>
+                      <span className="text-sm font-bold text-slate-900 dark:text-white mt-0.5 block">
                         {viewing.agentAssignedName || 'Attribution en cours (Gombe/Ngaliema)'}
                       </span>
-                      <span className="text-[10px] text-emerald-400 block mt-1">
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 block mt-1">
                         Accompagnement gratuit · Aucun pourboire ou frais exigé
                       </span>
                     </div>
@@ -368,7 +368,7 @@ export const ClientRequestsView: React.FC<ClientRequestsViewProps> = ({
         {activeTab === 'FAVORITES' && (
           <div className="space-y-3">
             {favorites.length === 0 ? (
-              <div className="p-8 text-center bg-slate-900/50 rounded-2xl border border-slate-800 text-slate-400 text-xs">
+              <div className="p-8 text-center bg-white dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 text-xs">
                 Aucun favori enregistré. Cliquez sur le cœur dans le feed vidéo pour enregistrer vos logements préférés.
               </div>
             ) : (
@@ -377,25 +377,25 @@ export const ClientRequestsView: React.FC<ClientRequestsViewProps> = ({
                   <div
                     key={fav.id}
                     onClick={() => onOpenDetails(fav)}
-                    className="p-3 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition-colors cursor-pointer flex gap-3 shadow-md"
+                    className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-colors cursor-pointer flex gap-3 shadow-sm dark:shadow-md"
                   >
                     <img
                       src={fav.media.videoThumbnail}
                       alt={fav.title}
-                      className="w-24 h-20 rounded-xl object-cover bg-slate-950 shrink-0"
+                      className="w-24 h-20 rounded-xl object-cover bg-slate-100 dark:bg-slate-950 shrink-0"
                     />
                     <div className="flex-1 min-w-0 flex flex-col justify-between">
                       <div>
-                        <h4 className="text-xs font-bold text-white line-clamp-1">
+                        <h4 className="text-xs font-bold text-slate-900 dark:text-white line-clamp-1">
                           {fav.title}
                         </h4>
-                        <div className="text-[11px] text-slate-400 mt-0.5">
+                        <div className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
                           {fav.commune} · {fav.quartier}
                         </div>
                       </div>
-                      <div className="text-xs font-bold text-rose-400 tabular-nums">
+                      <div className="text-xs font-bold text-rose-600 dark:text-rose-400 tabular-nums">
                         {formatCDF(fav.pricing.amountCdf)} CDF
-                        <span className="text-[10px] text-slate-400 font-normal"> / {fav.pricing.priceUnit === 'PER_NIGHT' ? 'nuit' : 'mois'}</span>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal"> / {fav.pricing.priceUnit === 'PER_NIGHT' ? 'nuit' : 'mois'}</span>
                       </div>
                     </div>
                   </div>
@@ -408,30 +408,30 @@ export const ClientRequestsView: React.FC<ClientRequestsViewProps> = ({
 
       {/* Payment Reference Input Modal */}
       {selectedBookingForPayment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/75 backdrop-blur-sm">
           <div 
-            className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-5 text-white shadow-2xl space-y-4"
+            className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 text-slate-900 dark:text-white shadow-2xl space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-sm font-bold text-white">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
                 Déclarer le règlement de l'avance (20%)
               </h3>
               <button
                 onClick={() => setSelectedBookingForPayment(null)}
-                className="w-7 h-7 rounded-full bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center"
+                className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center justify-center"
               >
                 ×
               </button>
             </div>
 
-            <p className="text-xs text-slate-300 leading-relaxed">
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
               Veuillez saisir le code de transaction ou référence SMS reçu après votre paiement direct à l'hôte ({formatCDF(selectedBookingForPayment.advanceAmountCdf)} CDF sur Vodacom M-Pesa ou Airtel Money).
             </p>
 
             <form onSubmit={handleDeclareSubmit} className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
                   Référence de la transaction
                 </label>
                 <input
@@ -439,7 +439,7 @@ export const ClientRequestsView: React.FC<ClientRequestsViewProps> = ({
                   value={paymentRefInput}
                   onChange={(e) => setPaymentRefInput(e.target.value)}
                   placeholder="Ex : MP-261104-984210"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-rose-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono text-xs focus:outline-none focus:border-rose-500"
                   required
                 />
               </div>
@@ -448,7 +448,7 @@ export const ClientRequestsView: React.FC<ClientRequestsViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setSelectedBookingForPayment(null)}
-                  className="flex-1 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold hover:bg-slate-700"
+                  className="flex-1 py-2 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-300 text-xs font-semibold hover:bg-slate-300 dark:hover:bg-slate-700"
                 >
                   Annuler
                 </button>

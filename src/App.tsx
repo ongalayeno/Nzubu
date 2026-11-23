@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   UserRole, 
   PropertyListing, 
@@ -14,13 +14,6 @@ import {
   SponsoredAd,
   AgentSignature
 } from './types';
-import { 
-  INITIAL_LISTINGS, 
-  INITIAL_BOOKINGS, 
-  INITIAL_VIEWINGS, 
-  INITIAL_MISSIONS,
-  INITIAL_SPONSORED_ADS
-} from './data/mockData';
 import { Header } from './components/Header';
 import { canApproveListing, isListingPublic } from './domain/listing';
 import { hasBookingConflict } from './domain/booking';
@@ -57,45 +50,33 @@ export default function App() {
   const [currentRole, setCurrentRole] = useState<UserRole>('CLIENT');
   const [isMobileDeviceView, setIsMobileDeviceView] = useState<boolean>(true); // Smartphone preview by default
   const [clientSubTab, setClientSubTab] = useState<'FEED' | 'EXPLORE' | 'REQUESTS'>('FEED');
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    try {
+      return localStorage.getItem('nzubu:theme') === 'light' ? 'light' : 'dark';
+    } catch {
+      return 'dark';
+    }
+  });
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    try {
+      localStorage.setItem('nzubu:theme', theme);
+    } catch {
+      // Ignore storage errors in restricted environments
+    }
+  }, [theme]);
 
   // Core collections
-  const [listings, setListings] = usePersistentState<PropertyListing[]>('nzubu:listings:v2', INITIAL_LISTINGS);
-  const [bookings, setBookings] = usePersistentState<BookingRequest[]>('nzubu:bookings:v2', INITIAL_BOOKINGS);
-  const [viewings, setViewings] = usePersistentState<ViewingRequest[]>('nzubu:viewings:v2', INITIAL_VIEWINGS);
-  const [missions, setMissions] = usePersistentState<FieldMission[]>('nzubu:missions:v2', INITIAL_MISSIONS);
-  const [sponsoredAds, setSponsoredAds] = usePersistentState<SponsoredAd[]>('nzubu:sponsored_ads:v2', INITIAL_SPONSORED_ADS);
+  const [listings, setListings] = usePersistentState<PropertyListing[]>('nzubu:listings:v2', []);
+  const [bookings, setBookings] = usePersistentState<BookingRequest[]>('nzubu:bookings:v2', []);
+  const [viewings, setViewings] = usePersistentState<ViewingRequest[]>('nzubu:viewings:v2', []);
+  const [missions, setMissions] = usePersistentState<FieldMission[]>('nzubu:missions:v2', []);
+  const [sponsoredAds, setSponsoredAds] = usePersistentState<SponsoredAd[]>('nzubu:sponsored_ads:v2', []);
   const [showCreateAdModal, setShowCreateAdModal] = useState<boolean>(false);
 
   // Security alerts registry
-  const [securityAlerts, setSecurityAlerts] = usePersistentState<SecurityAlert[]>('nzubu:alerts:v2', [
-    {
-      id: 'alt-001',
-      missionId: 'mis-2026-031',
-      unitTitle: 'Appartement Haut Standing — Gombe Ambassades',
-      commune: 'Gombe',
-      quartier: 'Golf',
-      agentName: 'Clarisse Ilunga',
-      agentId: 'NZUBU-AG-01',
-      notes: 'Risque d\'incendie électrique : Court-circuit constaté sur le tableau de répartition sans disjoncteur différentiel fonctionnel. Logement suspendu par précaution.',
-      timestamp: 'Hier 17:15',
-      resolved: false,
-      gpsCoordinates: {
-        latitude: -4.303314,
-        longitude: 15.304521,
-        accuracyMeters: 4,
-        capturedAt: '17:12:00',
-        source: 'DEVICE_GPS',
-      },
-      photos: [
-        {
-          id: 'alt-p1',
-          url: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=800&auto=format&fit=crop&q=80',
-          caption: 'Tableau électrique avec fils fondus et disjoncteur non conforme',
-          capturedAt: '17:14',
-        },
-      ],
-    },
-  ]);
+  const [securityAlerts, setSecurityAlerts] = usePersistentState<SecurityAlert[]>('nzubu:alerts:v2', []);
 
   // Filters for the video feed
   const [feedCommuneFilter, setFeedCommuneFilter] = useState<string>('ALL');
@@ -598,7 +579,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans select-none">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans select-none transition-colors">
       {/* Top Bar Contract (Zone 1: Brand, Zone 2: Role Switcher, Zone 3: Actions) */}
       <Header
         currentRole={currentRole}
@@ -609,9 +590,11 @@ export default function App() {
         onToggleDeviceView={() => setIsMobileDeviceView(!isMobileDeviceView)}
         onOpenCompliance={() => setShowComplianceModal(true)}
         unresolvedSafetyAlertsCount={securityAlerts.filter((a) => !a.resolved).length}
+        theme={theme}
+        onToggleTheme={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
       />
 
-      <div className="bg-amber-950/70 border-b border-amber-800/50 px-4 py-1.5 text-center text-[11px] text-amber-200">
+      <div className="bg-amber-50 dark:bg-amber-950/70 border-b border-amber-200 dark:border-amber-800/50 px-4 py-1.5 text-center text-[11px] text-amber-900 dark:text-amber-200 transition-colors">
         Prototype local : données enregistrées uniquement dans ce navigateur. Comptes, API et paiements réels indisponibles.
       </div>
 
@@ -637,16 +620,20 @@ export default function App() {
         {/* Device Frame View (when isMobileDeviceView is true) */}
         {isMobileDeviceView ? (
           <div className="w-full flex-1 flex items-center justify-center p-2 sm:p-4">
-            <div className="w-[390px] h-[780px] sm:h-[820px] rounded-[44px] border-[10px] border-slate-900 shadow-2xl relative overflow-hidden bg-slate-950 flex flex-col ring-1 ring-slate-800">
+            <div className="w-[390px] h-[780px] sm:h-[820px] rounded-[44px] border-[10px] border-slate-800 dark:border-slate-900 shadow-2xl relative overflow-hidden bg-slate-50 dark:bg-slate-950 flex flex-col ring-1 ring-slate-300 dark:ring-slate-800 transition-colors">
               {/* Phone Speaker & Camera Notch */}
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-slate-900 rounded-b-2xl z-40 flex items-center justify-center">
-                <div className="w-10 h-1 bg-slate-800 rounded-full" />
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-slate-800 dark:bg-slate-900 rounded-b-2xl z-40 flex items-center justify-center">
+                <div className="w-10 h-1 bg-slate-700 dark:bg-slate-800 rounded-full" />
               </div>
 
               {/* Status Bar */}
-              <div className="h-9 px-6 flex items-center justify-between text-[11px] font-semibold text-white/90 z-30 pt-1 pointer-events-none">
+              <div className={`h-9 px-6 flex items-center justify-between text-[11px] font-semibold z-30 pt-1 pointer-events-none ${
+                currentRole === 'CLIENT' && clientSubTab === 'FEED'
+                  ? 'text-white/90'
+                  : 'text-slate-900/90 dark:text-white/90'
+              }`}>
                 <span>09:41</span>
-                <div className="flex items-center gap-1.5 text-white/90">
+                <div className="flex items-center gap-1.5">
                   <Signal className="w-3 h-3" />
                   <span className="text-[10px] font-mono">4G</span>
                   <Battery className="w-4 h-4" />
@@ -671,6 +658,7 @@ export default function App() {
                   <AgentFieldApp
                     missions={missions}
                     onCompleteMission={handleCompleteMission}
+                    securityAlerts={securityAlerts}
                   />
                 )}
                 {currentRole === 'OPERATIONS_ADMIN' && (
@@ -693,11 +681,11 @@ export default function App() {
 
               {/* Mobile Bottom Thumb Bar (for Client role) */}
               {currentRole === 'CLIENT' && (
-                <div className="h-16 bg-slate-950/95 backdrop-blur-md border-t border-slate-800/80 grid grid-cols-3 items-center z-40 px-2 pb-safe">
+                <div className="h-16 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800/80 grid grid-cols-3 items-center z-40 px-2 pb-safe transition-colors">
                   <button
                     onClick={() => setClientSubTab('FEED')}
                     className={`flex flex-col items-center justify-center h-full transition-colors ${
-                      clientSubTab === 'FEED' ? 'text-rose-500' : 'text-slate-400 hover:text-white'
+                      clientSubTab === 'FEED' ? 'text-rose-500' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                     }`}
                   >
                     <Video className="w-5 h-5" />
@@ -707,7 +695,7 @@ export default function App() {
                   <button
                     onClick={() => setClientSubTab('EXPLORE')}
                     className={`flex flex-col items-center justify-center h-full transition-colors ${
-                      clientSubTab === 'EXPLORE' ? 'text-rose-500' : 'text-slate-400 hover:text-white'
+                      clientSubTab === 'EXPLORE' ? 'text-rose-500' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                     }`}
                   >
                     <Search className="w-5 h-5" />
@@ -717,7 +705,7 @@ export default function App() {
                   <button
                     onClick={() => setClientSubTab('REQUESTS')}
                     className={`flex flex-col items-center justify-center h-full transition-colors relative ${
-                      clientSubTab === 'REQUESTS' ? 'text-rose-500' : 'text-slate-400 hover:text-white'
+                      clientSubTab === 'REQUESTS' ? 'text-rose-500' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                     }`}
                   >
                     <Inbox className="w-5 h-5" />
@@ -730,8 +718,8 @@ export default function App() {
               )}
 
               {/* Bottom Home Indicator Bar */}
-              <div className="h-4 bg-slate-950 flex items-center justify-center">
-                <div className="w-32 h-1 bg-white/20 rounded-full" />
+              <div className="h-4 bg-white dark:bg-slate-950 flex items-center justify-center transition-colors">
+                <div className="w-32 h-1 bg-slate-300 dark:bg-white/20 rounded-full" />
               </div>
             </div>
           </div>
@@ -740,12 +728,12 @@ export default function App() {
           <div className="w-full h-full flex-1 flex flex-col">
             {/* If Client role in desktop view, show sub navigation */}
             {currentRole === 'CLIENT' && (
-              <div className="bg-slate-900 border-b border-slate-800 px-6 py-2 flex items-center justify-between">
+              <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-2 flex items-center justify-between transition-colors">
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setClientSubTab('FEED')}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors ${
-                      clientSubTab === 'FEED' ? 'bg-rose-500 text-white' : 'text-slate-400 hover:text-white'
+                      clientSubTab === 'FEED' ? 'bg-rose-500 text-white' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                     }`}
                   >
                     <Video className="w-3.5 h-3.5" />
@@ -755,7 +743,7 @@ export default function App() {
                   <button
                     onClick={() => setClientSubTab('EXPLORE')}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors ${
-                      clientSubTab === 'EXPLORE' ? 'bg-rose-500 text-white' : 'text-slate-400 hover:text-white'
+                      clientSubTab === 'EXPLORE' ? 'bg-rose-500 text-white' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                     }`}
                   >
                     <Search className="w-3.5 h-3.5" />
@@ -765,7 +753,7 @@ export default function App() {
                   <button
                     onClick={() => setClientSubTab('REQUESTS')}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors ${
-                      clientSubTab === 'REQUESTS' ? 'bg-rose-500 text-white' : 'text-slate-400 hover:text-white'
+                      clientSubTab === 'REQUESTS' ? 'bg-rose-500 text-white' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                     }`}
                   >
                     <Inbox className="w-3.5 h-3.5" />
@@ -773,8 +761,8 @@ export default function App() {
                   </button>
                 </div>
 
-                <div className="text-xs text-slate-400 flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                <div className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                   <span>Marché pilote : Gombe · Lingwala · Ngaliema (CDF uniquement)</span>
                 </div>
               </div>
@@ -870,8 +858,8 @@ export default function App() {
 
       {/* Action Toast Feedback */}
       {actionToast && (
-        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 border border-slate-700 text-white text-xs px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 animate-slide-up">
-          <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+        <div className="fixed bottom-6 right-6 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 animate-slide-up">
+          <Sparkles className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0" />
           <span>{actionToast}</span>
         </div>
       )}

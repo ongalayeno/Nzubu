@@ -153,33 +153,33 @@ export const AgentSignaturePad: React.FC<AgentSignaturePadProps> = ({
   };
 
   return (
-    <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
+    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <FileSignature className="w-5 h-5 text-sky-400" />
-          <h4 className="text-xs font-bold uppercase tracking-wider text-white">
+          <FileSignature className="w-5 h-5 text-sky-600 dark:text-sky-400" />
+          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">
             Émargement & Signature Tactile de Mission
           </h4>
         </div>
         {sealedSignature ? (
-          <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 flex items-center gap-1">
+          <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 flex items-center gap-1">
             <Lock className="w-3 h-3" />
             Signature Scellée
           </span>
         ) : (
-          <span className="text-[10px] font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+          <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
             Requis pour validation finale
           </span>
         )}
       </div>
 
-      <p className="text-[11px] text-slate-400">
+      <p className="text-[11px] text-slate-600 dark:text-slate-400">
         L'agent d'inspection certifie sur l'honneur l'exactitude des constatations matérielles (eau, SNEL, disjoncteur, conformité du bail en Francs Congolais).
       </p>
 
-      {/* Canvas Area */}
+      {/* Canvas Area (kept slate-900 so sky-blue ink stays high-contrast across both themes) */}
       <div className="relative">
-        <div className="w-full h-36 bg-slate-900 border border-slate-700 rounded-xl overflow-hidden touch-none relative cursor-crosshair">
+        <div className="w-full h-36 bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl overflow-hidden touch-none relative cursor-crosshair">
           <canvas
             ref={canvasRef}
             className="w-full h-full block"
@@ -193,14 +193,14 @@ export const AgentSignaturePad: React.FC<AgentSignaturePadProps> = ({
           />
 
           {!hasDrawn && !sealedSignature && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-slate-500 text-xs">
-              <PenTool className="w-6 h-6 mb-1 text-slate-600" />
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-slate-400 text-xs">
+              <PenTool className="w-6 h-6 mb-1 text-slate-500" />
               <span>Tracez votre signature au doigt ou au stylet ici</span>
             </div>
           )}
 
           {/* Watermark / Agent Stamp in background */}
-          <div className="absolute bottom-2 left-3 pointer-events-none text-[10px] text-slate-500 font-mono">
+          <div className="absolute bottom-2 left-3 pointer-events-none text-[10px] text-slate-400 font-mono">
             Agent: {agentName} ({agentId})
             {gpsCoordinates && ` · GPS: ${gpsCoordinates.latitude.toFixed(4)}, ${gpsCoordinates.longitude.toFixed(4)}`}
           </div>
@@ -211,7 +211,7 @@ export const AgentSignaturePad: React.FC<AgentSignaturePadProps> = ({
           <button
             type="button"
             onClick={clearCanvas}
-            className="absolute top-2 right-2 px-2 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-[10px] font-semibold flex items-center gap-1 backdrop-blur-sm border border-slate-600"
+            className="absolute top-2 right-2 px-2 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 text-[10px] font-semibold flex items-center gap-1 backdrop-blur-sm border border-slate-600"
           >
             <RotateCcw className="w-3 h-3" />
             <span>Effacer</span>
@@ -222,7 +222,7 @@ export const AgentSignaturePad: React.FC<AgentSignaturePadProps> = ({
       {/* Witness / Host Info (optional but recommended) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
         <div>
-          <label className="text-[11px] font-bold text-slate-300 block mb-1">
+          <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
             Bailleur ou témoin présent sur site :
           </label>
           <input
@@ -231,19 +231,19 @@ export const AgentSignaturePad: React.FC<AgentSignaturePadProps> = ({
             value={witnessName}
             onChange={(e) => setWitnessName(e.target.value)}
             placeholder="Nom complet du bailleur / mandataire"
-            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 disabled:opacity-50"
+            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-sky-500 disabled:opacity-50"
           />
         </div>
 
         <div>
-          <label className="text-[11px] font-bold text-slate-300 block mb-1">
+          <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
             Qualité du signataire présent :
           </label>
           <select
             disabled={!!sealedSignature}
             value={witnessRole}
             onChange={(e) => setWitnessRole(e.target.value as any)}
-            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-sky-500 disabled:opacity-50"
+            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 disabled:opacity-50"
           >
             <option value="OWNER">Propriétaire du bien</option>
             <option value="MANDATAIRE">Mandataire / Commissionnaire officiel</option>
@@ -257,14 +257,14 @@ export const AgentSignaturePad: React.FC<AgentSignaturePadProps> = ({
       <div className="pt-2 flex items-center justify-between">
         {sealedSignature ? (
           <div className="flex items-center justify-between w-full">
-            <div className="text-[11px] text-emerald-400 flex items-center gap-1.5">
+            <div className="text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4" />
               <span>Scellé le {new Date(sealedSignature.agentSignedAt).toLocaleTimeString('fr-CD')}</span>
             </div>
             <button
               type="button"
               onClick={handleUnlockToEdit}
-              className="px-3 py-1 rounded-lg border border-slate-700 hover:bg-slate-800 text-[10px] text-slate-300 font-semibold"
+              className="px-3 py-1 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-[10px] text-slate-700 dark:text-slate-300 font-semibold"
             >
               Modifier la signature
             </button>
@@ -274,7 +274,7 @@ export const AgentSignaturePad: React.FC<AgentSignaturePadProps> = ({
             type="button"
             disabled={!hasDrawn}
             onClick={handleSealSignature}
-            className="w-full py-2.5 rounded-xl bg-sky-500 hover:bg-sky-600 disabled:opacity-40 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-sky-500/20 transition-all"
+            className="w-full py-2.5 rounded-xl bg-sky-600 dark:bg-sky-500 hover:bg-sky-500 dark:hover:bg-sky-600 disabled:opacity-40 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-sky-500/20 transition-all"
           >
             <Lock className="w-3.5 h-3.5" />
             <span>Valider et Sceller l'émargement de la mission</span>
